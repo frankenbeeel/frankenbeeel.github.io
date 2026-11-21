@@ -156,6 +156,12 @@
   .loupe { position: fixed; z-index: 10; width: 150px; height: 150px; border-radius: 50%; border: 3px solid var(--accent); box-shadow: 0 4px 16px rgba(0,0,0,.3); background: #fff; pointer-events: none; display: none; }
   .ft-empty { text-align: center; color: var(--muted); padding: 48px 12px; margin: 0; }
   .ft-empty[hidden] { display: none; }
+  .paste-wrap { position: relative; margin-top: 12px; }
+  .paste-wrap[hidden] { display: none; }
+  .paste-zone { min-height: 96px; border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); color: transparent; caret-color: transparent; overflow: hidden; outline: none; -webkit-user-select: text; user-select: text; }
+  .paste-zone:focus { border-style: solid; }
+  .paste-text { position: absolute; inset: 0 0 auto; margin: 0; padding: 22px 16px 0; text-align: center; font-weight: 600; color: var(--accent); pointer-events: none; }
+  #ft-paste-close { margin-top: 8px; }
   footer ul { padding-left: 18px; }
 </style>
 </head>
@@ -278,6 +284,11 @@
     <div class="ft-uploads" style="margin-top:10px">
       <button type="button" class="btn ghost" id="ft-paste-pattern">Klistra in mönster</button>
       <button type="button" class="btn ghost" id="ft-paste-fabric">Klistra in tyg</button>
+    </div>
+    <div id="ft-paste-wrap" class="paste-wrap" hidden>
+      <div id="ft-paste-zone" class="paste-zone" contenteditable="true" inputmode="none" role="textbox" aria-label="Klistra in bild här"></div>
+      <p id="ft-paste-zone-text" class="paste-text">Håll fingret här och välj Klistra in.</p>
+      <button type="button" class="btn small ghost" id="ft-paste-close">Stäng</button>
     </div>
     <p class="muted" style="font-size:.85rem;margin:10px 0 0">Har du kopierat en bild kan du klistra in den med knapparna, eller trycka <span class="kbd-paste">Ctrl+V</span> var som helst på sidan: första bilden blir mönstret, sedan blir de tyger. Mönstret ska ha mörka linjer på ljus botten. Allt stannar i din webbläsare, inget laddas upp till någon server.</p>
     <details>
@@ -1110,46 +1121,128 @@
   });
 
   // ---------- Paste ----------
-  // Buttons read the clipboard directly (works on phones too, the browser may ask first).
+  // Copied images arrive in different forms: as image files, or (when copied from a web page)
+  // as HTML with an <img>. iOS browsers often only hand them over through a real paste.
+  async function urlToBlob(src) {
+    if (!src) return null;
+    if (/^(data|blob):/.test(src)) return (await fetch(src)).blob();
+    // Another site's image: only works if that site allows it.
+    const i = new Image();
+    i.crossOrigin = 'anonymous';
+    await new Promise((res, rej) => { i.onload = res; i.onerror = rej; i.src = src; });
+    const c = document.createElement('canvas');
+    c.width = i.naturalWidth; c.height = i.naturalHeight;
+    c.getContext('2d').drawImage(i, 0, 0);
+    return new Promise((res) => c.toBlob(res, 'image/png'));
+  }
+  const imgSrcIn = (html) => {
+    const m = /<img[^>]+src\s*=\s*["']([^"']+)["']/i.exec(html || '');
+    return m ? m[1].replace(/&amp;/g, '&') : null;
+  };
+  const looksLikeImageUrl = (t) => /^(https?:\/\/\S+\.(png|jpe?g|gif|webp)(\?\S*)?|data:image\/\S+)$/i.test((t || '').trim());
+
   async function clipboardImages() {
     if (!navigator.clipboard || !navigator.clipboard.read) throw new Error('unsupported');
     const out = [];
     for (const item of await navigator.clipboard.read()) {
       const type = item.types.find((t) => t.startsWith('image/'));
-      if (type) out.push(await item.getType(type));
+      if (type) { out.push(await item.getType(type)); continue; }
+      try {
+        if (item.types.includes('text/html')) {
+          const b = await urlToBlob(imgSrcIn(await (await item.getType('text/html')).text()));
+          if (b) { out.push(b); continue; }
+        }
+        if (item.types.includes('text/plain')) {
+          const t = await (await item.getType('text/plain')).text();
+          if (looksLikeImageUrl(t)) { const b = await urlToBlob(t.trim()); if (b) out.push(b); }
+        }
+      } catch (err) { /* not usable */ }
     }
     return out;
   }
+
+  async function imagesFromPasteEvent(e) {
+    const cd = e.clipboardData;
+    if (!cd) return [];
+    const files = Array.from(cd.items || [])
+      .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+      .map((it) => it.getAsFile()).filter(Boolean);
+    if (!files.length && cd.files) files.push(...Array.from(cd.files).filter((f) => f.type.startsWith('image/')));
+    if (files.length) return files;
+    try {
+      const html = cd.getData('text/html'), text = cd.getData('text/plain');
+      const src = imgSrcIn(html) || (looksLikeImageUrl(text) ? text.trim() : null);
+      const b = await urlToBlob(src);
+      return b ? [b] : [];
+    } catch (err) {
+      return [];
+    }
+  }
+  const hasImageHint = (e) => {
+    const cd = e.clipboardData;
+    if (!cd) return false;
+    return Array.from(cd.types || []).some((t) => t.startsWith('image/') || t === 'Files' || t === 'text/html')
+      || looksLikeImageUrl(cd.getData('text/plain'));
+  };
+
   const pasteHelp = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘V' : 'Ctrl+V';
   document.querySelectorAll('.kbd-paste').forEach((el) => { el.textContent = pasteHelp; });
-  async function pasteFromButton(toPattern) {
-    let imgs;
-    try {
-      imgs = await clipboardImages();
-    } catch (err) {
-      status(err && err.name === 'NotAllowedError'
-        ? 'Webbläsaren gav inte tillgång till urklipp. Tryck ' + pasteHelp + ' på sidan i stället.'
-        : 'Den här webbläsaren kan inte läsa urklipp via knappen. Tryck ' + pasteHelp + ' på sidan i stället.');
+
+  // Paste field: the fallback that works everywhere, including iPhone and iPad.
+  const zone = $('ft-paste-zone');
+  let zoneTarget = 'fabric';
+  function openZone(target) {
+    zoneTarget = target;
+    $('ft-paste-zone-text').textContent = target === 'pattern'
+      ? 'Håll fingret här och välj Klistra in för att lägga in mönstret.'
+      : 'Håll fingret här och välj Klistra in för att lägga till tyget.';
+    $('ft-paste-wrap').hidden = false;
+    zone.focus();
+  }
+  $('ft-paste-close').addEventListener('click', () => { $('ft-paste-wrap').hidden = true; });
+  zone.addEventListener('paste', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    zone.textContent = '';
+    const imgs = await imagesFromPasteEvent(e);
+    if (!imgs.length) {
+      status(hasImageHint(e)
+        ? 'Bilden kunde inte hämtas från webbsidan. Spara bilden i Bilder (eller ta en skärmdump), kopiera den därifrån och försök igen.'
+        : 'Det fanns ingen bild i urklipp. Kopiera en bild först.');
       return;
     }
-    if (!imgs.length) { status('Det finns ingen bild i urklipp. Kopiera en bild först.'); return; }
+    $('ft-paste-wrap').hidden = true;
+    if (zoneTarget === 'pattern') addPattern(imgs[0]); else addFabrics(imgs);
+  });
+  // Nothing typed or dropped into the field should stay there.
+  zone.addEventListener('input', () => { zone.textContent = ''; });
+  zone.addEventListener('drop', (e) => e.preventDefault());
+
+  async function pasteFromButton(toPattern) {
+    let imgs = [];
+    try {
+      imgs = await clipboardImages();
+    } catch (err) { /* not allowed or not supported: use the paste field */ }
+    if (!imgs.length) { openZone(toPattern ? 'pattern' : 'fabric'); return; }
+    $('ft-paste-wrap').hidden = true;
     if (toPattern) addPattern(imgs[0]); else addFabrics(imgs);
   }
   $('ft-paste-pattern').addEventListener('click', () => pasteFromButton(true));
   $('ft-paste-fabric').addEventListener('click', () => pasteFromButton(false));
 
   // Ctrl+V / ⌘V anywhere on the Färgtestare: first image becomes the pattern, after that fabrics.
-  document.addEventListener('paste', (e) => {
+  document.addEventListener('paste', async (e) => {
     if ($('view-farg').hidden) return;
-    const files = Array.from((e.clipboardData && e.clipboardData.items) || [])
-      .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
-      .map((it) => it.getAsFile()).filter(Boolean);
-    if (!files.length) {
-      if (!(e.target.closest && e.target.closest('input'))) status('Det fanns ingen bild i urklipp. Kopiera en bild först.');
+    if (e.target.closest && e.target.closest('input')) return;
+    e.preventDefault();
+    const imgs = await imagesFromPasteEvent(e);
+    if (!imgs.length) {
+      status(hasImageHint(e)
+        ? 'Bilden kunde inte hämtas från webbsidan. Spara bilden på datorn, kopiera den därifrån och försök igen.'
+        : 'Det fanns ingen bild i urklipp. Kopiera en bild först.');
       return;
     }
-    e.preventDefault();
-    if (!st.pattern) addPattern(files[0]); else addFabrics(files);
+    if (!st.pattern) addPattern(imgs[0]); else addFabrics(imgs);
   });
 
   $('ft-threshold').addEventListener('input', () => {
