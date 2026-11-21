@@ -96,6 +96,13 @@
   .diagram svg { width: 100%; height: auto; max-height: 320px; display: block; }
   .diagram figcaption { color: var(--muted); font-size: .82rem; margin-top: 6px; }
   .error { color: var(--bad); font-weight: 600; }
+  .head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+  .head h2 { margin: 0; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: .9rem; }
+  .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .seg label { margin: 0; padding: 5px 14px; cursor: pointer; font-weight: 600; color: var(--muted); }
+  .seg input:checked + label { background: var(--accent); color: #fff; }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
   footer { color: var(--muted); font-size: .85rem; }
   footer ul { padding-left: 18px; }
 </style>
@@ -106,20 +113,26 @@
   <p class="lead">Ange lapptäckets mått så räknas det ut hur mycket tyg du behöver till kantbandet. Du kan också kontrollera om en tygbit du redan har räcker.</p>
 
   <section>
-    <h2>1. Lapptäcket</h2>
+    <div class="head">
+      <h2>1. Lapptäcket</h2>
+      <div class="seg" role="radiogroup" aria-label="Enhet för lapptäckets mått">
+        <input type="radio" name="qunit" id="qunit-cm" value="cm"><label for="qunit-cm">cm</label>
+        <input type="radio" name="qunit" id="qunit-in" value="in" checked><label for="qunit-in">in</label>
+      </div>
+    </div>
     <div class="grid">
       <div class="field">
         <label for="qw">Bredd</label>
         <input id="qw" type="number" inputmode="decimal" min="1" step="any" value="60">
-        <span class="unit">in</span>
+        <span class="unit" data-g="q">in</span>
       </div>
       <div class="field">
         <label for="ql">Längd</label>
         <input id="ql" type="number" inputmode="decimal" min="1" step="any" value="80">
-        <span class="unit">in</span>
+        <span class="unit" data-g="q">in</span>
       </div>
       <div class="field">
-        <label for="sw">Remsbredd <span class="hint">(klippbredd, t.ex. 2,5″ för dubbelvikt band)</span></label>
+        <label for="sw">Remsbredd <span class="hint">(alltid i inches, t.ex. 2,5″ för dubbelvikt band)</span></label>
         <input id="sw" type="number" inputmode="decimal" min="0.1" step="any" value="2.5">
         <span class="unit">in</span>
       </div>
@@ -128,12 +141,12 @@
       <summary>Fler inställningar</summary>
       <div class="grid">
         <div class="field">
-          <label for="extra">Extra längd <span class="hint">(för hörn och för att skarva ihop början och slut)</span></label>
+          <label for="extra">Extra längd <span class="hint">(inches, för hörn och för att skarva ihop början och slut)</span></label>
           <input id="extra" type="number" inputmode="decimal" min="0" step="any" value="12">
           <span class="unit">in</span>
         </div>
         <div class="field">
-          <label for="fw">Tygbredd i butik <span class="hint">(användbar bredd utan stadkant)</span></label>
+          <label for="fw">Tygbredd i butik <span class="hint">(inches, användbar bredd utan stadkant, ≈ 42″ = 107 cm)</span></label>
           <input id="fw" type="number" inputmode="decimal" min="1" step="any" value="42">
           <span class="unit">in</span>
         </div>
@@ -147,17 +160,23 @@
   </section>
 
   <section>
-    <h2>3. Räcker mitt tyg?</h2>
+    <div class="head">
+      <h2>3. Räcker mitt tyg?</h2>
+      <div class="seg" role="radiogroup" aria-label="Enhet för tygbitens mått">
+        <input type="radio" name="hunit" id="hunit-cm" value="cm"><label for="hunit-cm">cm</label>
+        <input type="radio" name="hunit" id="hunit-in" value="in" checked><label for="hunit-in">in</label>
+      </div>
+    </div>
     <div class="grid">
       <div class="field">
         <label for="hx">Tygbitens bredd</label>
         <input id="hx" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 20">
-        <span class="unit">in</span>
+        <span class="unit" data-g="h">in</span>
       </div>
       <div class="field">
         <label for="hy">Tygbitens längd</label>
         <input id="hy" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 27">
-        <span class="unit">in</span>
+        <span class="unit" data-g="h">in</span>
       </div>
     </div>
     <div id="have"></div>
@@ -166,6 +185,7 @@
   <footer>
     <p><b>Så räknas det</b></p>
     <ul>
+      <li>Lapptäckets och tygbitens mått kan anges i cm eller inches. Allt som ska klippas visas i inches, med cm inom parentes.</li>
       <li>Kantbandets längd = lapptäckets omkrets (2 × bredd + 2 × längd) + extra längd.</li>
       <li>Remsorna klipps tvärs över tyget i vald remsbredd och skarvas ihop med diagonala sömmar. Varje diagonal skarv äter upp ungefär en remsbredd plus ½″ för sömsmån, alltså 3″ per skarv med 2,5″ remsor. Det räknas med.</li>
       <li>Föreslagen mängd att köpa är avrundad uppåt till närmaste ⅛ yard (4,5″).</li>
@@ -179,9 +199,16 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const ids = ['qw', 'ql', 'sw', 'extra', 'fw', 'hx', 'hy'];
-  const num = (id) => {
+  const raw = (id) => {
     const v = parseFloat(String($(id).value).replace(',', '.'));
     return isFinite(v) ? v : NaN;
+  };
+  const unitOf = (g) => document.querySelector(`input[name="${g}unit"]:checked`).value;
+  const groupOf = { qw: 'q', ql: 'q', hx: 'h', hy: 'h' };
+  // All calculations are done in inches; quilt and owned-fabric sizes may be entered in cm.
+  const num = (id) => {
+    const v = raw(id);
+    return groupOf[id] && unitOf(groupOf[id]) === 'cm' ? v / 2.54 : v;
   };
   const fmt = (v, d = 1) => {
     const r = Math.round(v * Math.pow(10, d)) / Math.pow(10, d);
@@ -189,7 +216,9 @@
   };
   const inch = (v) => fmt(v, 2) + '″';
   const yd = (v) => fmt(v / 36, 2) + ' yd';
-  const len = (v) => inch(v) + ' (' + yd(v) + ')';
+  const cmTxt = (v) => fmt(v * 2.54, 1) + ' cm';
+  const both = (v) => inch(v) + ' (' + cmTxt(v) + ')';
+  const len = (v) => inch(v) + ' (' + yd(v) + ' / ' + fmt(v * 2.54 / 100, 2) + ' m)';
   const eighths = ['', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞'];
   const ydFrac = (inches) => {
     const e = Math.round(inches / 4.5);
@@ -255,19 +284,20 @@
     } else {
       const fabricLen = n * sw;
       const buyLen = Math.ceil(fabricLen / 4.5 - 1e-9) * 4.5;
+      const buyCm = Math.ceil(fabricLen * 2.54 / 10 - 1e-9) * 10;
       const produced = lengthFromStrips(n, fw, loss);
       need.innerHTML = `
         <div class="result">
           <p class="muted">Du behöver en tygbit på</p>
           <p class="big">${inch(fw)} × ${inch(fabricLen)}</p>
-          <p>(${inch(fw)} tygbredd, ${inch(fabricLen)} längd = ${yd(fabricLen)})</p>
-          <p>Köp minst <b>${ydFrac(buyLen)}</b> (${inch(buyLen)}), avrundat till närmaste ⅛ yard.</p>
+          <p>(${both(fw)} tygbredd, ${both(fabricLen)} längd)</p>
+          <p>Köp minst <b>${ydFrac(buyLen)}</b> (${inch(buyLen)}), eller <b>${buyCm} cm</b> om tyget säljs per 10 cm.</p>
         </div>
         <div class="stats">
-          <div class="stat"><b>${len(total)}</b><span>kantband behövs</span></div>
+          <div class="stat"><b>${inch(total)}</b><span>kantband behövs (${yd(total)} / ${fmt(total * 2.54 / 100, 2)} m)</span></div>
           <div class="stat"><b>${n} st</b><span>remsor à ${inch(sw)} × ${inch(fw)}</span></div>
           <div class="stat"><b>${n - 1} st</b><span>diagonala skarvar (${inch(loss)} spill per skarv)</span></div>
-          <div class="stat"><b>${len(produced)}</b><span>kantband du får fram</span></div>
+          <div class="stat"><b>${inch(produced)}</b><span>kantband du får fram (${yd(produced)} / ${fmt(produced * 2.54 / 100, 2)} m)</span></div>
         </div>
         <figure class="diagram" style="margin:14px 0 0">
           ${diagram(fw, fabricLen, sw, n)}
@@ -291,8 +321,8 @@
 
     const useA = lenA >= lenB;
     const best = useA
-      ? { k: kA, len: hx, total: lenA, pieceW: hx, pieceH: hy, dir: 'längs bredden (' + inch(hx) + ' långa)' }
-      : { k: kB, len: hy, total: lenB, pieceW: hy, pieceH: hx, dir: 'längs längden (' + inch(hy) + ' långa)' };
+      ? { k: kA, len: hx, total: lenA, pieceW: hx, pieceH: hy, dir: 'längs bredden (' + both(hx) + ' långa)' }
+      : { k: kB, len: hy, total: lenB, pieceW: hy, pieceH: hx, dir: 'längs längden (' + both(hy) + ' långa)' };
 
     const enough = best.total >= total;
     const diff = best.total - total;
@@ -305,7 +335,7 @@
       const kUsed = stripsNeeded(total, best.len, loss);
       html = `<div class="verdict ok"><p class="big">Ja, det räcker!</p>
         <p>Du kan få fram <b>${len(best.total)}</b> kantband och behöver <b>${len(total)}</b>. Det blir <b>${len(diff)}</b> över.</p>
-        <p>Klipp <b>${kUsed} remsor</b> ${best.dir}. Du använder ${inch(best.pieceW)} × ${inch(kUsed * sw)} av tyget.</p></div>`;
+        <p>Klipp <b>${kUsed} remsor</b> ${best.dir}. Du använder ${inch(best.pieceW)} × ${inch(kUsed * sw)} (${cmTxt(best.pieceW)} × ${cmTxt(kUsed * sw)}) av tyget.</p></div>`;
     } else {
       const short = -diff;
       // How much longer would the piece need to be, keeping the same strip direction?
@@ -313,7 +343,7 @@
       let extraTip = '';
       if (isFinite(kNeed)) {
         const needSide = kNeed * sw;
-        extraTip = `<p>Med remsor ${best.dir} skulle tygbiten behöva vara <b>${inch(best.pieceW)} × ${inch(needSide)}</b> (${kNeed} remsor), alltså ${inch(needSide - best.pieceH)} till.</p>`;
+        extraTip = `<p>Med remsor ${best.dir} skulle tygbiten behöva vara <b>${inch(best.pieceW)} × ${inch(needSide)}</b> (${cmTxt(best.pieceW)} × ${cmTxt(needSide)}, ${kNeed} remsor), alltså ${both(needSide - best.pieceH)} till.</p>`;
       }
       html = `<div class="verdict bad"><p class="big">Nej, det räcker inte</p>
         <p>Du kan få fram <b>${len(best.total)}</b> kantband men behöver <b>${len(total)}</b>. Det fattas <b>${len(short)}</b>.</p>
@@ -332,6 +362,21 @@
   }
 
   ids.forEach((id) => $(id).addEventListener('input', render));
+
+  // Switching unit converts the values already entered.
+  ['q', 'h'].forEach((g) => {
+    document.querySelectorAll(`input[name="${g}unit"]`).forEach((radio) => {
+      radio.addEventListener('change', () => {
+        const toCm = unitOf(g) === 'cm';
+        Object.keys(groupOf).filter((id) => groupOf[id] === g).forEach((id) => {
+          const v = raw(id);
+          if (!isNaN(v)) $(id).value = String(Math.round((toCm ? v * 2.54 : v / 2.54) * 100) / 100);
+        });
+        document.querySelectorAll(`.unit[data-g="${g}"]`).forEach((el) => { el.textContent = toCm ? 'cm' : 'in'; });
+        render();
+      });
+    });
+  });
   render();
 })();
 </script>
