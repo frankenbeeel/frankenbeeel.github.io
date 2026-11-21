@@ -160,6 +160,7 @@
   .paste-wrap[hidden] { display: none; }
   .paste-zone { min-height: 96px; border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); color: transparent; caret-color: transparent; overflow: hidden; outline: none; -webkit-user-select: text; user-select: text; }
   .paste-zone:focus { border-style: solid; }
+  .paste-zone img { position: absolute; width: 1px; height: 1px; opacity: 0; }
   .paste-text { position: absolute; inset: 0 0 auto; margin: 0; padding: 22px 16px 0; text-align: center; font-weight: 600; color: var(--accent); pointer-events: none; }
   #ft-paste-close { margin-top: 8px; }
   footer ul { padding-left: 18px; }
@@ -1161,29 +1162,54 @@
     return out;
   }
 
-  async function imagesFromPasteEvent(e) {
-    const cd = e.clipboardData;
-    if (!cd) return [];
-    const files = Array.from(cd.items || [])
-      .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
-      .map((it) => it.getAsFile()).filter(Boolean);
-    if (!files.length && cd.files) files.push(...Array.from(cd.files).filter((f) => f.type.startsWith('image/')));
-    if (files.length) return files;
+  // Read everything from a paste event right away: browsers (iOS in particular) empty it afterwards.
+  function snapshotPaste(e) {
+    const cd = e.clipboardData, snap = { files: [], html: '', text: '', uris: '', types: [] };
+    if (!cd) return snap;
     try {
-      const html = cd.getData('text/html'), text = cd.getData('text/plain');
-      const src = imgSrcIn(html) || (looksLikeImageUrl(text) ? text.trim() : null);
-      const b = await urlToBlob(src);
-      return b ? [b] : [];
-    } catch (err) {
-      return [];
-    }
+      snap.types = Array.from(cd.types || []);
+      Array.from(cd.items || []).forEach((it) => {
+        if (it.kind === 'file' && it.type.startsWith('image/')) { const f = it.getAsFile(); if (f) snap.files.push(f); }
+      });
+      if (!snap.files.length && cd.files) snap.files.push(...Array.from(cd.files).filter((f) => f.type.startsWith('image/')));
+      snap.html = cd.getData('text/html') || '';
+      snap.text = cd.getData('text/plain') || '';
+      snap.uris = cd.getData('text/uri-list') || '';
+    } catch (err) { /* partial snapshot is fine */ }
+    return snap;
   }
-  const hasImageHint = (e) => {
-    const cd = e.clipboardData;
-    if (!cd) return false;
-    return Array.from(cd.types || []).some((t) => t.startsWith('image/') || t === 'Files' || t === 'text/html')
-      || looksLikeImageUrl(cd.getData('text/plain'));
-  };
+  function urlCandidates(snap) {
+    const out = [], src = imgSrcIn(snap.html);
+    if (src) out.push(src);
+    [snap.uris, snap.text].forEach((t) => (t || '').split(/\s+/).forEach((u) => {
+      if (/^(https?:\/\/|data:image\/)/i.test(u)) out.push(u);
+    }));
+    return Array.from(new Set(out));
+  }
+  async function imagesFromSnap(snap) {
+    if (snap.files.length) return snap.files;
+    for (const u of urlCandidates(snap)) {
+      try { const b = await urlToBlob(u); if (b) return [b]; } catch (err) { /* try next */ }
+    }
+    return [];
+  }
+  // Turn an <img> that the browser pasted into the field into image data.
+  async function blobFromImgElement(img) {
+    if (!img.complete || !img.naturalWidth) {
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; setTimeout(rej, 5000); });
+    }
+    try { if (/^(blob|data):/.test(img.src)) return await (await fetch(img.src)).blob(); } catch (err) { /* draw it instead */ }
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    c.getContext('2d').drawImage(img, 0, 0);
+    return new Promise((res, rej) => { try { c.toBlob(res, 'image/png'); } catch (err) { rej(err); } });
+  }
+  function pasteFailed(snap, triedUrl) {
+    const what = snap.types.length ? ' (urklipp innehöll: ' + snap.types.join(', ') + ')' : '';
+    status(triedUrl
+      ? 'Bilden kunde inte hämtas från webbsidan, sidan tillåter det inte. Spara bilden i Bilder (eller ta en skärmdump), kopiera den därifrån och försök igen.' + what
+      : 'Det fanns ingen bild i urklipp. Kopiera en bild först.' + what);
+  }
 
   const pasteHelp = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘V' : 'Ctrl+V';
   document.querySelectorAll('.kbd-paste').forEach((el) => { el.textContent = pasteHelp; });
@@ -1200,22 +1226,35 @@
     zone.focus();
   }
   $('ft-paste-close').addEventListener('click', () => { $('ft-paste-wrap').hidden = true; });
+  function useImages(imgs, toPattern) {
+    $('ft-paste-wrap').hidden = true;
+    if (toPattern) addPattern(imgs[0]); else addFabrics(imgs);
+  }
   zone.addEventListener('paste', async (e) => {
-    e.preventDefault();
     e.stopPropagation();
-    zone.textContent = '';
-    const imgs = await imagesFromPasteEvent(e);
-    if (!imgs.length) {
-      status(hasImageHint(e)
-        ? 'Bilden kunde inte hämtas från webbsidan. Spara bilden i Bilder (eller ta en skärmdump), kopiera den därifrån och försök igen.'
-        : 'Det fanns ingen bild i urklipp. Kopiera en bild först.');
+    const snap = snapshotPaste(e), target = zoneTarget === 'pattern';
+    if (snap.files.length || urlCandidates(snap).length) {
+      e.preventDefault();
+      zone.innerHTML = '';
+      const imgs = await imagesFromSnap(snap);
+      if (imgs.length) useImages(imgs, target); else pasteFailed(snap, !snap.files.length);
       return;
     }
-    $('ft-paste-wrap').hidden = true;
-    if (zoneTarget === 'pattern') addPattern(imgs[0]); else addFabrics(imgs);
+    // The browser didn't hand over the image: let it paste into the field and pick it up from there.
+    zone.innerHTML = '';
+    setTimeout(async () => {
+      const img = zone.querySelector('img');
+      zone.innerHTML = '';
+      if (!img) { pasteFailed(snap, false); return; }
+      try {
+        const b = await blobFromImgElement(img);
+        if (b) { useImages([b], target); return; }
+      } catch (err) { /* fall through */ }
+      pasteFailed(snap, true);
+    }, 150);
   });
-  // Nothing typed or dropped into the field should stay there.
-  zone.addEventListener('input', () => { zone.textContent = ''; });
+  // Text typed into the field shouldn't stay there (a pasted image is picked up above).
+  zone.addEventListener('input', () => { if (!zone.querySelector('img')) zone.textContent = ''; });
   zone.addEventListener('drop', (e) => e.preventDefault());
 
   async function pasteFromButton(toPattern) {
@@ -1233,15 +1272,11 @@
   // Ctrl+V / ⌘V anywhere on the Färgtestare: first image becomes the pattern, after that fabrics.
   document.addEventListener('paste', async (e) => {
     if ($('view-farg').hidden) return;
-    if (e.target.closest && e.target.closest('input')) return;
+    if (e.target.closest && (e.target.closest('input') || e.target.closest('#ft-paste-zone'))) return;
+    const snap = snapshotPaste(e);
     e.preventDefault();
-    const imgs = await imagesFromPasteEvent(e);
-    if (!imgs.length) {
-      status(hasImageHint(e)
-        ? 'Bilden kunde inte hämtas från webbsidan. Spara bilden på datorn, kopiera den därifrån och försök igen.'
-        : 'Det fanns ingen bild i urklipp. Kopiera en bild först.');
-      return;
-    }
+    const imgs = await imagesFromSnap(snap);
+    if (!imgs.length) { pasteFailed(snap, urlCandidates(snap).length > 0); return; }
     if (!st.pattern) addPattern(imgs[0]); else addFabrics(imgs);
   });
 
