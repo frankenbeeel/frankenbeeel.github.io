@@ -152,7 +152,8 @@
   .ft-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .ft-status { min-height: 1.5em; margin: 8px 0; font-size: .9rem; color: var(--accent); }
   .stage { background: var(--bg); border-radius: 8px; padding: 8px; }
-  #ft-canvas { display: block; max-width: 100%; max-height: 80vh; width: auto; height: auto; margin: 0 auto; cursor: crosshair; background: #fff; touch-action: manipulation; }
+  #ft-canvas { display: block; max-width: 100%; max-height: 80vh; width: auto; height: auto; margin: 0 auto; cursor: crosshair; background: #fff; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .loupe { position: fixed; z-index: 10; width: 150px; height: 150px; border-radius: 50%; border: 3px solid var(--accent); box-shadow: 0 4px 16px rgba(0,0,0,.3); background: #fff; pointer-events: none; display: none; }
   .ft-empty { text-align: center; color: var(--muted); padding: 48px 12px; margin: 0; }
   .ft-empty[hidden] { display: none; }
   footer ul { padding-left: 18px; }
@@ -305,6 +306,7 @@
     <p id="ft-status" class="ft-status" role="status"></p>
     <div class="stage">
       <canvas id="ft-canvas" hidden></canvas>
+      <canvas id="ft-loupe" class="loupe" aria-hidden="true"></canvas>
       <p id="ft-empty" class="ft-empty">Ladda upp ett mönster för att börja.</p>
     </div>
   </section>
@@ -312,6 +314,7 @@
   <footer>
     <p><b>Tips</b></p>
     <ul>
+      <li>Ett förstoringsglas visar exakt var du träffar och vilken ruta som fylls. På mobilen: håll fingret på mönstret, dra tills rätt ruta är markerad och släpp. Drar du ut fingret utanför mönstret händer ingenting.</li>
       <li>Klicka i en ruta som redan har tyg för att byta tyget. Välj <i>Sudda</i> och klicka för att ta bort det.</li>
       <li>Om tyget fyller mer än rutan finns det troligen ett litet glapp i linjen. Ångra och höj linjekänsligheten under <i>Linjekänslighet</i>.</li>
       <li>Ett tygs storlek ändras med reglaget när tyget är valt. Vid 100&nbsp;% är en tygbild en femtedel så bred som mönstret.</li>
@@ -951,11 +954,11 @@
   });
 
   // ---------- Filling ----------
-  canvas.addEventListener('click', (e) => {
+  function fillAt(clientX, clientY) {
     if (!labels) return;
     const r = canvas.getBoundingClientRect();
-    const s = snap(Math.floor((e.clientX - r.left) * W / r.width), Math.floor((e.clientY - r.top) * H / r.height));
-    if (!s) { status('Du klickade på en linje. Klicka inne i en ruta.'); return; }
+    const s = snap(Math.floor((clientX - r.left) * W / r.width), Math.floor((clientY - r.top) * H / r.height));
+    if (!s) { status('Du träffade en linje. Sikta inne i en ruta.'); return; }
     if (!st.selected) { status('Välj ett tyg ovanför mönstret först.'); return; }
     const L = labels[s.y * W + s.x];
     const before = st.fills.length;
@@ -970,7 +973,87 @@
     } else {
       status('');
     }
+  }
+
+  // ---------- Magnifier ----------
+  // Shows an enlarged view around the pointer, with the area that will be filled tinted.
+  // Touch: press, drag until the right area is marked, release to fill (release outside = cancel).
+  const loupe = $('ft-loupe'), lctx = loupe.getContext('2d');
+  const LOUPE = 150, ZOOM = 3;
+  function showLoupe(clientX, clientY, touch) {
+    if (!labels) return;
+    const r = canvas.getBoundingClientRect();
+    const inside = clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+    if (!inside) { loupe.style.display = 'none'; return; }
+    const dpr = window.devicePixelRatio || 1, n = Math.round(LOUPE * dpr);
+    if (loupe.width !== n) { loupe.width = loupe.height = n; }
+    const k = W / r.width; // canvas pixels per CSS pixel
+    const cx = (clientX - r.left) * k, cy = (clientY - r.top) * k;
+    const span = LOUPE / ZOOM * k; // canvas pixels shown across the loupe
+    const sx = cx - span / 2, sy = cy - span / 2;
+    lctx.imageSmoothingEnabled = false;
+    lctx.fillStyle = '#fff'; lctx.fillRect(0, 0, n, n);
+    lctx.drawImage(canvas, sx, sy, span, span, 0, 0, n, n);
+    // Tint the area that a release here would fill.
+    const s = snap(Math.floor(cx), Math.floor(cy));
+    if (s) {
+      const L = labels[s.y * W + s.x];
+      const img = lctx.getImageData(0, 0, n, n), d = img.data, f = span / n;
+      for (let y = 0; y < n; y++) {
+        const py = Math.floor(sy + y * f);
+        if (py < 0 || py >= H) continue;
+        for (let x = 0; x < n; x++) {
+          const px = Math.floor(sx + x * f);
+          if (px < 0 || px >= W || labels[py * W + px] !== L) continue;
+          const q = (y * n + x) * 4;
+          d[q] = d[q] * 0.6 + 181 * 0.4; d[q + 1] = d[q + 1] * 0.6 + 82 * 0.4; d[q + 2] = d[q + 2] * 0.6 + 59 * 0.4;
+        }
+      }
+      lctx.putImageData(img, 0, 0);
+    }
+    // Crosshair
+    lctx.strokeStyle = '#000'; lctx.lineWidth = 1.5 * dpr;
+    const m = n / 2, g = 6 * dpr, a = 16 * dpr;
+    lctx.beginPath();
+    lctx.moveTo(m - a, m); lctx.lineTo(m - g, m); lctx.moveTo(m + g, m); lctx.lineTo(m + a, m);
+    lctx.moveTo(m, m - a); lctx.lineTo(m, m - g); lctx.moveTo(m, m + g); lctx.lineTo(m, m + a);
+    lctx.stroke();
+    // Above the finger on touch, beside the cursor with a mouse; keep it on screen.
+    let left = touch ? clientX - LOUPE / 2 : clientX + 24;
+    let top = touch ? clientY - LOUPE - 50 : clientY - LOUPE - 24;
+    if (top < 8) top = touch ? clientY + 50 : clientY + 24;
+    left = Math.max(8, Math.min(window.innerWidth - LOUPE - 8, left));
+    loupe.style.left = left + 'px'; loupe.style.top = top + 'px';
+    loupe.style.display = 'block';
+  }
+  const hideLoupe = () => { loupe.style.display = 'none'; };
+
+  let pressing = null;
+  canvas.addEventListener('pointerdown', (e) => {
+    if (!labels || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault();
+    pressing = e.pointerId;
+    canvas.setPointerCapture(e.pointerId);
+    showLoupe(e.clientX, e.clientY, e.pointerType !== 'mouse');
   });
+  canvas.addEventListener('pointermove', (e) => {
+    if (pressing !== null && e.pointerId !== pressing) return;
+    if (pressing === null && e.pointerType !== 'mouse') return;
+    showLoupe(e.clientX, e.clientY, e.pointerType !== 'mouse');
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    if (e.pointerId !== pressing) return;
+    pressing = null;
+    if (e.pointerType !== 'mouse') hideLoupe();
+    const r = canvas.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+      fillAt(e.clientX, e.clientY);
+      if (e.pointerType === 'mouse') showLoupe(e.clientX, e.clientY, false);
+    }
+  });
+  canvas.addEventListener('pointercancel', () => { pressing = null; hideLoupe(); });
+  canvas.addEventListener('pointerleave', (e) => { if (pressing === null) hideLoupe(); });
+  window.addEventListener('scroll', () => { if (pressing === null) hideLoupe(); }, { passive: true });
 
   $('ft-download').addEventListener('click', () => {
     canvas.toBlob((b) => {
