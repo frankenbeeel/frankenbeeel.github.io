@@ -21,6 +21,9 @@
     --strip-a: #d9826b;
     --strip-b: #c96a52;
     --waste: #ece6de;
+    --quilt: #efe7da;
+    --seam: #ffffff;
+    --warn: #d99a00;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -38,6 +41,9 @@
       --strip-a: #c46a52;
       --strip-b: #a95640;
       --waste: #332e2a;
+      --quilt: #3a342f;
+      --seam: #1c1917;
+      --warn: #f2c14e;
     }
   }
   * { box-sizing: border-box; }
@@ -103,6 +109,14 @@
   .seg label { margin: 0; padding: 5px 14px; cursor: pointer; font-weight: 600; color: var(--muted); }
   .seg input:checked + label { background: var(--accent); color: #fff; }
   .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .models { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .model { margin: 0; }
+  .model h3 { font-size: 1rem; margin: 0 0 2px; }
+  .model .sub { color: var(--muted); font-size: .85rem; margin: 0 0 8px; }
+  .model svg { width: 100%; height: auto; max-height: 380px; display: block; }
+  .model ul { margin: 8px 0 0; padding-left: 18px; font-size: .9rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: .82rem; margin-top: 12px; }
+  .legend i { display: inline-block; width: 14px; height: 4px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
   footer { color: var(--muted); font-size: .85rem; }
   footer ul { padding-left: 18px; }
 </style>
@@ -182,6 +196,11 @@
     <div id="have"></div>
   </section>
 
+  <section>
+    <h2>4. Skarvarna runt täcket</h2>
+    <div id="model"></div>
+  </section>
+
   <footer>
     <p><b>Så räknas det</b></p>
     <ul>
@@ -191,6 +210,7 @@
       <li>Föreslagen mängd att köpa är avrundad uppåt till närmaste ⅛ yard (4,5″).</li>
       <li>För din egen tygbit testas båda riktningarna (remsor längs bredden eller längden) och den som ger mest kantband används.</li>
       <li>Räkningen gäller rakt klippta remsor, inte snedremsor.</li>
+      <li>Modellen i avsnitt 4 är ungefärlig. Den antar att kantbandet börjar mitt på nederkanten med halva extralängden som svans i varje ände. Var skarvarna hamnar beror på var du börjar sy.</li>
     </ul>
   </footer>
 </main>
@@ -263,6 +283,88 @@
     </svg>`;
   }
 
+  // Draw the quilt with the binding laid around it, strip by strip.
+  function model(qw, ql, stripLen, k, loss, total, extra) {
+    const P = 2 * (qw + ql);
+    const tail = extra / 2;
+    const box = 220;
+    const sc = box / Math.max(qw, ql);
+    const W = qw * sc, H = ql * sc, pad = 16, bw = 7;
+    // Perimeter path, clockwise on screen, starting mid-bottom.
+    const pts = [[W / 2, H], [0, H], [0, 0], [W, 0], [W, H], [W / 2, H]];
+    const segs = [];
+    let acc = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
+      const l = Math.hypot(x2 - x1, y2 - y1) / sc;
+      segs.push({ x1, y1, x2, y2, a: acc, b: acc + l, l });
+      acc += l;
+    }
+    const at = (d) => {
+      d = Math.max(0, Math.min(P, d));
+      const g = segs.find((q) => d <= q.b + 1e-9) || segs[segs.length - 1];
+      const t = g.l ? (d - g.a) / g.l : 0;
+      return { x: g.x1 + (g.x2 - g.x1) * t, y: g.y1 + (g.y2 - g.y1) * t, dx: Math.sign(g.x2 - g.x1), dy: Math.sign(g.y2 - g.y1) };
+    };
+    const path = (a, b) => {
+      const p0 = at(a);
+      let d = `M${p0.x.toFixed(1)},${p0.y.toFixed(1)}`;
+      segs.forEach((g) => { if (g.b > a + 1e-9 && g.b < b - 1e-9) d += ` L${g.x2.toFixed(1)},${g.y2.toFixed(1)}`; });
+      const p1 = at(b);
+      return d + ` L${p1.x.toFixed(1)},${p1.y.toFixed(1)}`;
+    };
+    const corners = [segs[0].b, segs[1].b, segs[2].b, segs[3].b];
+    const near = 3; // inches: a seam closer than this to a corner is awkward to miter
+
+    // Strip boundaries along the binding (binding coordinate), converted to perimeter coordinate.
+    const produced = lengthFromStrips(k, stripLen, loss);
+    const bounds = [0];
+    for (let i = 1; i < k; i++) bounds.push(i * (stripLen - loss) + loss / 2);
+    bounds.push(produced);
+    const covered = Math.min(P, produced - tail);
+
+    let bands = '', ticks = '', nearCount = 0, seamsOnQuilt = 0;
+    for (let i = 0; i < k; i++) {
+      const a = Math.max(0, bounds[i] - tail), b = Math.min(P, bounds[i + 1] - tail);
+      if (b > a) bands += `<path d="${path(a, b)}" fill="none" stroke="var(${i % 2 ? '--strip-b' : '--strip-a'})" stroke-width="${bw}" stroke-linejoin="miter"/>`;
+    }
+    if (covered < P) {
+      bands += `<path d="${path(Math.max(0, covered), P)}" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="4 4"/>`;
+    }
+    const tick = (d, color, w) => {
+      const p = at(d), n = 6;
+      // diagonal across the band: along-edge + normal direction
+      const ux = p.dx - p.dy, uy = p.dy + p.dx;
+      return `<line x1="${(p.x - ux * n).toFixed(1)}" y1="${(p.y - uy * n).toFixed(1)}" x2="${(p.x + ux * n).toFixed(1)}" y2="${(p.y + uy * n).toFixed(1)}" stroke="var(${color})" stroke-width="${w}" stroke-linecap="round"/>`;
+    };
+    for (let i = 1; i < k; i++) {
+      const d = bounds[i] - tail;
+      if (d < 0 || d > covered) continue;
+      seamsOnQuilt++;
+      const isNear = corners.some((c) => Math.abs(c - d) < near);
+      if (isNear) { nearCount++; ticks += tick(d, '--warn', 4); }
+      ticks += tick(d, '--seam', 2);
+    }
+    // Closing join where the two ends meet
+    let closing = '';
+    if (covered >= P) {
+      const p = at(0);
+      closing = `<circle cx="${p.x}" cy="${p.y}" r="5" fill="none" stroke="var(--text)" stroke-width="1.5"/>`;
+    }
+    const svg = `<svg viewBox="${-pad} ${-pad} ${W + 2 * pad} ${H + 2 * pad}" role="img" aria-label="Modell av lapptäcket med kantband och skarvar">
+      <rect x="0" y="0" width="${W}" height="${H}" fill="var(--quilt)"/>
+      ${bands}${ticks}${closing}
+    </svg>`;
+    return { svg, seams: seamsOnQuilt, nearCount, enough: covered >= P };
+  }
+
+  function modelCard(title, sub, m) {
+    const items = [`<li><b>${m.seams}</b> skarvar längs kanten${m.enough ? ' + 1 skarv där ändarna möts' : ''}</li>`];
+    if (m.nearCount) items.push(`<li style="color:var(--warn)"><b>${m.nearCount}</b> ${m.nearCount === 1 ? 'skarv hamnar' : 'skarvar hamnar'} nära ett hörn</li>`);
+    if (!m.enough) items.push(`<li style="color:var(--bad)">Kantbandet räcker inte hela vägen runt</li>`);
+    return `<figure class="model"><h3>${title}</h3><p class="sub">${sub}</p>${m.svg}<ul>${items.join('')}</ul></figure>`;
+  }
+
   function render() {
     const qw = num('qw'), ql = num('ql'), sw = num('sw');
     const extra = isNaN(num('extra')) ? 0 : num('extra');
@@ -278,6 +380,16 @@
     const loss = joinLoss(sw);
     const total = 2 * (qw + ql) + extra;
     const n = stripsNeeded(total, fw, loss);
+    const modelEl = $('model');
+    const legend = `<div class="legend">
+        <span><i style="background:var(--strip-a)"></i><i style="background:var(--strip-b)"></i>en remsa per färg</span>
+        <span><i style="background:var(--warn)"></i>skarv nära hörn (under 3″)</span>
+        <span>○ där ändarna sys ihop</span>
+      </div>`;
+    const fullCard = isFinite(n)
+      ? modelCard('Hel tygbredd', `${n} remsor à ${inch(fw)}`, model(qw, ql, fw, n, loss, total, extra))
+      : '';
+    modelEl.innerHTML = `<div class="models">${fullCard}</div>${legend}<p class="muted" style="font-size:.85rem">Fyll i ditt resttyg i avsnitt 3 för att jämföra.</p>`;
 
     if (!isFinite(n)) {
       need.innerHTML = '<p class="error">Tygbredden måste vara större än det som går åt i varje diagonal skarv.</p>';
@@ -311,6 +423,10 @@
       have.innerHTML = '<p class="muted" style="margin-top:14px">Fyll i måtten på tyget du har för att se om det räcker.</p>';
       return;
     }
+    const showRest = (b, kRest) => {
+      const rest = modelCard('Ditt resttyg', `${kRest} remsor à ${both(b.len)}`, model(qw, ql, b.len, kRest, loss, total, extra));
+      modelEl.innerHTML = `<div class="models">${fullCard}${rest}</div>${legend}`;
+    };
 
     // Option A: strips along hx (length hx), count floor(hy/sw)
     const kA = Math.floor(hy / sw + 1e-9);
@@ -352,6 +468,7 @@
 
     if (best.k > 0) {
       const kShow = enough ? stripsNeeded(total, best.len, loss) : best.k;
+      showRest(best, kShow);
       html += `<figure class="diagram" style="margin:14px 0 0">
         ${diagram(best.pieceW, best.pieceH, sw, kShow)}
         <figcaption>Skiss av din tygbit: ${kShow} remsor ${best.dir}. Grått = tyg som blir över.</figcaption>
