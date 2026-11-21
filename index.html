@@ -334,17 +334,26 @@
       bands += `<path d="${path(Math.max(0, covered), P)}" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="4 4"/>`;
     }
     const tick = (d, color, w) => {
-      const p = at(d), n = 6;
-      // diagonal across the band: along-edge + normal direction
+      // Keep the seam fully on one side, at least half a band width away from a corner.
+      d = Math.max(0, Math.min(P, d));
+      const g = segs.find((q) => d <= q.b + 1e-9) || segs[segs.length - 1];
+      const m = bw / 2 / sc;
+      const dd = g.l > 2 * m ? Math.max(g.a + m, Math.min(g.b - m, d)) : (g.a + g.b) / 2;
+      const p = at(dd), n = bw / 2;
+      // 45° line that spans exactly the band width: along-edge + normal direction
       const ux = p.dx - p.dy, uy = p.dy + p.dx;
-      return `<line x1="${(p.x - ux * n).toFixed(1)}" y1="${(p.y - uy * n).toFixed(1)}" x2="${(p.x + ux * n).toFixed(1)}" y2="${(p.y + uy * n).toFixed(1)}" stroke="var(${color})" stroke-width="${w}" stroke-linecap="round"/>`;
+      return `<line x1="${(p.x - ux * n).toFixed(1)}" y1="${(p.y - uy * n).toFixed(1)}" x2="${(p.x + ux * n).toFixed(1)}" y2="${(p.y + uy * n).toFixed(1)}" stroke="var(${color})" stroke-width="${w}" stroke-linecap="butt"/>`;
     };
     for (let i = 1; i < k; i++) {
       const d = bounds[i] - tail;
       if (d < 0 || d > covered) continue;
       seamsOnQuilt++;
       const isNear = corners.some((c) => Math.abs(c - d) < near);
-      if (isNear) { nearCount++; ticks += tick(d, '--warn', 4); }
+      if (isNear) {
+        nearCount++;
+        const c = at(Math.max(0, Math.min(P, d)));
+        ticks += `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="${bw + 2}" fill="none" stroke="var(--warn)" stroke-width="2"/>`;
+      }
       ticks += tick(d, '--seam', 2);
     }
     // Closing join where the two ends meet
@@ -404,7 +413,7 @@
     const modelEl = $('model');
     const legend = `<div class="legend">
         <span><i style="background:var(--strip-a)"></i><i style="background:var(--strip-b)"></i>en remsa per färg</span>
-        <span><i style="background:var(--warn)"></i>skarv nära hörn (under 3″)</span>
+        <span><i style="background:none;border:2px solid var(--warn);width:10px;height:10px;border-radius:50%"></i>skarv nära hörn (under 3″)</span>
         <span>○ där ändarna sys ihop</span>
       </div>`;
     const fullCard = isFinite(n)
