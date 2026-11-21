@@ -132,6 +132,29 @@
   .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: .82rem; margin-top: 12px; }
   .legend i { display: inline-block; width: 14px; height: 4px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
   footer { color: var(--muted); font-size: .85rem; }
+  .vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+  .btn { display: inline-block; font: inherit; font-weight: 600; font-size: .95rem; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; margin: 0; }
+  .btn.small { padding: 6px 12px; font-size: .88rem; }
+  .btn.ghost { background: transparent; color: var(--accent); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn:focus-visible, input:focus-visible + .btn { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ft-uploads { display: flex; flex-wrap: wrap; gap: 10px; }
+  input[type="range"] { padding: 0; border: 0; background: none; accent-color: var(--accent); }
+  .ft-work { padding-top: 0; }
+  .ft-bar { position: sticky; top: 0; z-index: 2; background: var(--card); padding: 14px 0 10px; border-bottom: 1px solid var(--border); }
+  .palette { display: flex; flex-wrap: wrap; gap: 8px; }
+  .swatch { width: 52px; height: 52px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg) center / cover no-repeat; cursor: pointer; padding: 0; font: inherit; font-size: .78rem; font-weight: 600; color: var(--muted); }
+  .swatch[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .ft-fabric-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
+  .ft-fabric-tools label { margin: 0; }
+  .ft-fabric-tools input { flex: 1 1 140px; width: auto; }
+  .ft-fabric-tools[hidden] { display: none; }
+  .ft-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .ft-status { min-height: 1.5em; margin: 8px 0; font-size: .9rem; color: var(--accent); }
+  .stage { background: var(--bg); border-radius: 8px; padding: 8px; }
+  #ft-canvas { display: block; max-width: 100%; max-height: 80vh; width: auto; height: auto; margin: 0 auto; cursor: crosshair; background: #fff; touch-action: manipulation; }
+  .ft-empty { text-align: center; color: var(--muted); padding: 48px 12px; margin: 0; }
+  .ft-empty[hidden] { display: none; }
   footer ul { padding-left: 18px; }
 </style>
 </head>
@@ -142,6 +165,7 @@
     <nav aria-label="Meny">
       <ul class="menu">
         <li><a href="#kantband" data-view="kantband">Kantbandsräknare</a></li>
+        <li><a href="#farg" data-view="farg">Färgtestare</a></li>
         <li><span class="soon" title="Fler verktyg är på väg">Fler verktyg kommer snart</span></li>
       </ul>
     </nav>
@@ -232,6 +256,62 @@
       <li>Räkningen gäller rakt klippta remsor, inte snedremsor.</li>
       <li>Färdig bredd för dubbelvikt kantband ≈ (remsbredd − ¼″) ÷ 6. Remsan viks på mitten och lindas runt kanten, så den täcker framsidan, kanten och baksidan. ¼″ räknas bort för vikningen och vaddens tjocklek. Med tjock vadd blir kantbandet lite smalare.</li>
       <li>Modellen i avsnitt 4 är ungefärlig. Den antar att kantbandet börjar mitt på nederkanten med halva extralängden som svans i varje ände. Var skarvarna hamnar beror på var du börjar sy.</li>
+    </ul>
+  </footer>
+ </div>
+
+ <div class="view" id="view-farg" hidden>
+  <h1>Färgtestare</h1>
+  <p class="lead">Ladda upp en linjeteckning av ditt lapptäcke och bilder på dina tyger. Välj ett tyg och klicka i en ruta i mönstret för att se hur det blir.</p>
+
+  <section>
+    <div class="head">
+      <h2>1. Mönster och tyger</h2>
+    </div>
+    <div class="ft-uploads">
+      <label class="btn" for="ft-pattern-file">Ladda upp mönster</label>
+      <input type="file" id="ft-pattern-file" class="vh" accept="image/png,image/jpeg">
+      <label class="btn" for="ft-fabric-file">Lägg till tyger</label>
+      <input type="file" id="ft-fabric-file" class="vh" accept="image/png,image/jpeg" multiple>
+    </div>
+    <p class="muted" style="font-size:.85rem;margin:10px 0 0">Mönstret ska vara en PNG- eller JPG-bild med mörka linjer på ljus botten. Allt stannar i din webbläsare, inget laddas upp till någon server.</p>
+    <details>
+      <summary>Linjekänslighet</summary>
+      <div class="field" style="margin-top:12px">
+        <label for="ft-threshold">Hur mörkt räknas som linje? <span class="hint">Höj om tyget rinner ut genom små glapp i linjerna. Sänk om ljusgrå ytor i mönstret räknas som linjer.</span></label>
+        <input type="range" id="ft-threshold" min="40" max="245" step="1" value="160">
+      </div>
+    </details>
+  </section>
+
+  <section class="ft-work">
+    <div class="ft-bar">
+      <div id="ft-palette" class="palette" role="group" aria-label="Tyger"></div>
+      <div id="ft-fabric-tools" class="ft-fabric-tools" hidden>
+        <label for="ft-scale">Tygets storlek</label>
+        <input type="range" id="ft-scale" min="10" max="400" step="5" value="100">
+        <button type="button" class="btn small ghost" id="ft-remove">Ta bort tyget</button>
+      </div>
+    </div>
+    <div class="ft-tools">
+      <button type="button" class="btn small ghost" id="ft-undo" disabled>Ångra</button>
+      <button type="button" class="btn small ghost" id="ft-clear" disabled>Rensa allt</button>
+      <button type="button" class="btn small" id="ft-download" disabled>Ladda ner bild</button>
+    </div>
+    <p id="ft-status" class="ft-status" role="status"></p>
+    <div class="stage">
+      <canvas id="ft-canvas" hidden></canvas>
+      <p id="ft-empty" class="ft-empty">Ladda upp ett mönster för att börja.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p><b>Tips</b></p>
+    <ul>
+      <li>Klicka i en ruta som redan har tyg för att byta tyget. Välj <i>Sudda</i> och klicka för att ta bort det.</li>
+      <li>Om tyget fyller mer än rutan finns det troligen ett litet glapp i linjen. Ångra och höj linjekänsligheten under <i>Linjekänslighet</i>.</li>
+      <li>Ett tygs storlek ändras med reglaget när tyget är valt. Vid 100&nbsp;% är en tygbild en femtedel så bred som mönstret.</li>
+      <li>Mönster, tyger och det du har fyllt i sparas i den här webbläsaren till nästa gång, men bara på den här enheten.</li>
     </ul>
   </footer>
  </div>
@@ -602,6 +682,359 @@
   syncLabels();
   render();
   window.addEventListener('pageshow', () => { syncLabels(); render(); });
+})();
+
+// Färgtestare: fill closed areas of an uploaded line drawing with fabric images.
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const MAX_PATTERN = 1400, MAX_FABRIC = 900, ERASE = 'erase';
+  const canvas = $('ft-canvas'), ctx = canvas.getContext('2d');
+  const lineCanvas = document.createElement('canvas');
+  const tmp = document.createElement('canvas'), tctx = tmp.getContext('2d');
+
+  // Saved state. Fills are stored as seed points so they survive a new line threshold.
+  let st = { pattern: null, threshold: 160, fabrics: [], fills: [], selected: null };
+  let W = 0, H = 0, lum = null, labels = null, sizes = [], edge = [];
+  const fabImgs = new Map();
+  const tiles = new Map();
+  let undo = [];
+
+  const status = (msg) => { $('ft-status').textContent = msg || ''; };
+  const loadImage = (src) => new Promise((res, rej) => {
+    const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src;
+  });
+
+  // Read a file and shrink it so huge photos stay fast and fit in storage.
+  async function fileToDataURL(file, max, type) {
+    const url = URL.createObjectURL(file);
+    try {
+      const i = await loadImage(url);
+      const s = Math.min(1, max / Math.max(i.naturalWidth, i.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(i.naturalWidth * s));
+      c.height = Math.max(1, Math.round(i.naturalHeight * s));
+      const x = c.getContext('2d');
+      x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+      x.drawImage(i, 0, 0, c.width, c.height);
+      return c.toDataURL(type, 0.88);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  // ---------- Storage (IndexedDB, this browser only) ----------
+  const DB = 'quilthjalpen', STORE = 'kv', KEY = 'fargtestare';
+  function idb() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open(DB, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+  }
+  async function dbGet() {
+    const db = await idb();
+    return new Promise((res, rej) => {
+      const q = db.transaction(STORE).objectStore(STORE).get(KEY);
+      q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+    });
+  }
+  async function dbSet(v) {
+    const db = await idb();
+    return new Promise((res, rej) => {
+      const t = db.transaction(STORE, 'readwrite');
+      t.objectStore(STORE).put(v, KEY);
+      t.oncomplete = res; t.onerror = () => rej(t.error);
+    });
+  }
+  let saveTimer = null;
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      dbSet(st).catch(() => status('Det gick inte att spara i webbläsaren (bilderna kan vara för stora, eller så är lagring avstängd).'));
+    }, 150);
+  }
+  window.addEventListener('pagehide', () => { if (saveTimer) { clearTimeout(saveTimer); dbSet(st).catch(() => {}); } });
+
+  // ---------- Pattern analysis ----------
+  async function usePattern(src) {
+    const i = await loadImage(src);
+    W = i.naturalWidth; H = i.naturalHeight;
+    lineCanvas.width = canvas.width = tmp.width = W;
+    lineCanvas.height = canvas.height = tmp.height = H;
+    const lc = lineCanvas.getContext('2d');
+    lc.fillStyle = '#fff'; lc.fillRect(0, 0, W, H);
+    lc.drawImage(i, 0, 0);
+    const d = lc.getImageData(0, 0, W, H).data;
+    lum = new Uint8Array(W * H);
+    for (let p = 0, q = 0; p < lum.length; p++, q += 4) {
+      lum[p] = (d[q] * 299 + d[q + 1] * 587 + d[q + 2] * 114) / 1000;
+    }
+    tiles.clear();
+    relabel();
+    canvas.hidden = false;
+    $('ft-empty').hidden = true;
+  }
+
+  // Give every closed area (pixels lighter than the threshold) its own number. 0 = line.
+  function relabel() {
+    const N = W * H, t = st.threshold;
+    labels = new Int32Array(N);
+    const stack = new Int32Array(N);
+    sizes = [0]; edge = [false];
+    let n = 0;
+    for (let p = 0; p < N; p++) {
+      if (labels[p] !== 0 || lum[p] < t) continue;
+      n++;
+      let sp = 0, size = 0, touch = false;
+      stack[sp++] = p; labels[p] = n;
+      while (sp) {
+        const q = stack[--sp];
+        size++;
+        const x = q % W, y = (q - x) / W;
+        if (x === 0 || y === 0 || x === W - 1 || y === H - 1) touch = true;
+        if (x > 0 && labels[q - 1] === 0 && lum[q - 1] >= t) { labels[q - 1] = n; stack[sp++] = q - 1; }
+        if (x < W - 1 && labels[q + 1] === 0 && lum[q + 1] >= t) { labels[q + 1] = n; stack[sp++] = q + 1; }
+        if (y > 0 && labels[q - W] === 0 && lum[q - W] >= t) { labels[q - W] = n; stack[sp++] = q - W; }
+        if (y < H - 1 && labels[q + W] === 0 && lum[q + W] >= t) { labels[q + W] = n; stack[sp++] = q + W; }
+      }
+      sizes.push(size); edge.push(touch);
+    }
+  }
+
+  // Nearest pixel that belongs to an area (a click right on a line still counts if close).
+  function snap(x, y) {
+    x = Math.max(0, Math.min(W - 1, x)); y = Math.max(0, Math.min(H - 1, y));
+    if (labels[y * W + x]) return { x, y };
+    for (let r = 1; r <= 4; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx >= 0 && yy >= 0 && xx < W && yy < H && labels[yy * W + xx]) return { x: xx, y: yy };
+        }
+      }
+    }
+    return null;
+  }
+  const regionAt = (x, y) => { const s = snap(x, y); return s ? labels[s.y * W + s.x] : 0; };
+
+  // ---------- Drawing ----------
+  function tile(f) {
+    const im = fabImgs.get(f.id);
+    const tw = Math.max(8, Math.round(W * 0.2 * f.scale / 100));
+    const th = Math.max(8, Math.round(tw * im.naturalHeight / im.naturalWidth));
+    const key = f.id + '|' + tw;
+    if (!tiles.has(key)) {
+      const c = document.createElement('canvas');
+      c.width = tw; c.height = th;
+      c.getContext('2d').drawImage(im, 0, 0, tw, th);
+      tiles.set(key, c);
+    }
+    return tiles.get(key);
+  }
+
+  function render() {
+    updateButtons();
+    if (!labels) return;
+    const N = W * H;
+    const idx = new Map(st.fabrics.map((f, i) => [f.id, i]));
+    const labFab = new Int16Array(sizes.length).fill(-1);
+    st.fills.forEach((f) => {
+      const L = regionAt(f.x, f.y), i = idx.get(f.f);
+      if (L > 0 && i !== undefined && fabImgs.has(f.f)) labFab[L] = i;
+    });
+    let owner = new Int16Array(N);
+    for (let p = 0; p < N; p++) owner[p] = labels[p] ? labFab[labels[p]] : -1;
+    // Let the fabric reach under the line a little, so no white rim shows along soft edges.
+    for (let pass = 0; pass < 2; pass++) {
+      const prev = owner.slice();
+      for (let p = 0; p < N; p++) {
+        if (labels[p] || prev[p] >= 0) continue;
+        const x = p % W;
+        owner[p] = x > 0 && prev[p - 1] >= 0 ? prev[p - 1]
+          : x < W - 1 && prev[p + 1] >= 0 ? prev[p + 1]
+          : p >= W && prev[p - W] >= 0 ? prev[p - W]
+          : p < N - W && prev[p + W] >= 0 ? prev[p + W] : -1;
+      }
+    }
+    const used = new Set();
+    for (let p = 0; p < N; p++) if (owner[p] >= 0) used.add(owner[p]);
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+    used.forEach((k) => {
+      const mask = tctx.createImageData(W, H), m = mask.data;
+      for (let p = 0; p < N; p++) if (owner[p] === k) m[p * 4 + 3] = 255;
+      tctx.globalCompositeOperation = 'source-over';
+      tctx.clearRect(0, 0, W, H);
+      tctx.putImageData(mask, 0, 0);
+      tctx.globalCompositeOperation = 'source-in';
+      tctx.fillStyle = tctx.createPattern(tile(st.fabrics[k]), 'repeat');
+      tctx.fillRect(0, 0, W, H);
+      ctx.drawImage(tmp, 0, 0);
+    });
+    // Put the lines back on top: white parts of the drawing leave the fabric as it is.
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.drawImage(lineCanvas, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // ---------- Palette ----------
+  function renderPalette() {
+    const pal = $('ft-palette');
+    const items = [`<button type="button" class="swatch erase" data-id="${ERASE}" aria-pressed="${st.selected === ERASE}" title="Sudda">Sudda</button>`];
+    st.fabrics.forEach((f, i) => {
+      items.push(`<button type="button" class="swatch" data-id="${f.id}" aria-pressed="${st.selected === f.id}" aria-label="Tyg ${i + 1}" style="background-image:url('${f.src}')"></button>`);
+    });
+    if (!st.fabrics.length) items.push('<span class="muted" style="font-size:.85rem;align-self:center">Lägg till tyger för att börja fylla.</span>');
+    pal.innerHTML = items.join('');
+    const f = st.fabrics.find((x) => x.id === st.selected);
+    $('ft-fabric-tools').hidden = !f;
+    if (f) $('ft-scale').value = f.scale;
+  }
+
+  $('ft-palette').addEventListener('click', (e) => {
+    const b = e.target.closest('.swatch');
+    if (!b) return;
+    st.selected = b.dataset.id;
+    renderPalette(); save();
+    status(st.selected === ERASE ? 'Klicka i en ruta för att ta bort tyget.' : labels ? 'Klicka i en ruta i mönstret.' : 'Ladda upp ett mönster först.');
+  });
+
+  $('ft-scale').addEventListener('input', () => {
+    const f = st.fabrics.find((x) => x.id === st.selected);
+    if (!f) return;
+    f.scale = +$('ft-scale').value;
+    render(); save();
+  });
+
+  $('ft-remove').addEventListener('click', () => {
+    const id = st.selected;
+    if (!st.fabrics.some((f) => f.id === id)) return;
+    pushUndo();
+    st.fabrics = st.fabrics.filter((f) => f.id !== id);
+    st.fills = st.fills.filter((f) => f.f !== id);
+    fabImgs.delete(id);
+    st.selected = null;
+    renderPalette(); render(); save();
+  });
+
+  // ---------- Undo ----------
+  function pushUndo() {
+    undo.push(JSON.stringify({ fills: st.fills, fabrics: st.fabrics }));
+    if (undo.length > 60) undo.shift();
+  }
+  function updateButtons() {
+    $('ft-undo').disabled = !undo.length;
+    $('ft-clear').disabled = !st.fills.length;
+    $('ft-download').disabled = !labels;
+  }
+  $('ft-undo').addEventListener('click', async () => {
+    const s = undo.pop();
+    if (!s) return;
+    const o = JSON.parse(s);
+    st.fills = o.fills;
+    st.fabrics = o.fabrics;
+    await Promise.all(st.fabrics.filter((f) => !fabImgs.has(f.id)).map(async (f) => fabImgs.set(f.id, await loadImage(f.src))));
+    renderPalette(); render(); save(); status('');
+  });
+  $('ft-clear').addEventListener('click', () => {
+    if (!st.fills.length) return;
+    pushUndo();
+    st.fills = [];
+    render(); save(); status('Alla rutor är tömda. Ångra om det var fel.');
+  });
+
+  // ---------- Filling ----------
+  canvas.addEventListener('click', (e) => {
+    if (!labels) return;
+    const r = canvas.getBoundingClientRect();
+    const s = snap(Math.floor((e.clientX - r.left) * W / r.width), Math.floor((e.clientY - r.top) * H / r.height));
+    if (!s) { status('Du klickade på en linje. Klicka inne i en ruta.'); return; }
+    if (!st.selected) { status('Välj ett tyg ovanför mönstret först.'); return; }
+    const L = labels[s.y * W + s.x];
+    const before = st.fills.length;
+    const kept = st.fills.filter((f) => regionAt(f.x, f.y) !== L);
+    if (st.selected === ERASE && kept.length === before) return;
+    pushUndo();
+    st.fills = kept;
+    if (st.selected !== ERASE) st.fills.push({ x: s.x, y: s.y, f: st.selected });
+    render(); save();
+    if (st.selected !== ERASE && edge[L] && sizes[L] > 0.25 * W * H) {
+      status('Tyget fyllde en stor del av bilden. Om det inte var meningen finns det troligen ett glapp i en linje: ångra och höj linjekänsligheten.');
+    } else {
+      status('');
+    }
+  });
+
+  $('ft-download').addEventListener('click', () => {
+    canvas.toBlob((b) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(b);
+      a.download = 'fargtestare.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, 'image/png');
+  });
+
+  // ---------- Uploads ----------
+  $('ft-pattern-file').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      status('Läser in mönstret…');
+      const src = await fileToDataURL(file, MAX_PATTERN, 'image/png');
+      if (st.fills.length) pushUndo();
+      st.pattern = src; st.fills = [];
+      undo = [];
+      await usePattern(src);
+      render(); save();
+      status(st.fabrics.length ? 'Välj ett tyg och klicka i en ruta.' : 'Lägg nu till några tyger.');
+    } catch (err) {
+      status('Bilden gick inte att läsa. Använd en PNG- eller JPG-fil.');
+    }
+  });
+
+  $('ft-fabric-file').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    e.target.value = '';
+    let added = 0;
+    for (const file of files) {
+      try {
+        const src = await fileToDataURL(file, MAX_FABRIC, 'image/jpeg');
+        const id = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        fabImgs.set(id, await loadImage(src));
+        st.fabrics.push({ id, src, scale: 100 });
+        st.selected = id;
+        added++;
+      } catch (err) { /* skip unreadable file */ }
+    }
+    renderPalette(); save();
+    status(added < files.length ? 'Någon bild gick inte att läsa. Använd PNG eller JPG.'
+      : labels ? 'Klicka i en ruta i mönstret.' : 'Ladda upp ett mönster också.');
+  });
+
+  $('ft-threshold').addEventListener('input', () => {
+    st.threshold = +$('ft-threshold').value;
+    if (labels) { relabel(); render(); }
+    save();
+  });
+
+  // ---------- Start ----------
+  (async function init() {
+    try {
+      const saved = await dbGet();
+      if (saved && typeof saved === 'object') {
+        st = Object.assign(st, saved);
+        $('ft-threshold').value = st.threshold;
+        for (const f of st.fabrics) fabImgs.set(f.id, await loadImage(f.src));
+        if (st.pattern) await usePattern(st.pattern);
+      }
+    } catch (e) { /* storage unavailable or broken: start empty */ }
+    renderPalette();
+    render();
+  })();
 })();
 </script>
 </body>
