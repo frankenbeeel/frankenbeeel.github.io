@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kantbandsräknare</title>
+<meta name="description" content="Räkna ut hur mycket tyg som behövs till kantband för ett lapptäcke, och kontrollera om ditt tyg räcker.">
+<style>
+  :root {
+    --bg: #f7f4ef;
+    --card: #ffffff;
+    --text: #2b2622;
+    --muted: #6f665e;
+    --border: #e2dbd2;
+    --accent: #b5523b;
+    --accent-soft: #f6e4de;
+    --ok: #2f7d4f;
+    --ok-soft: #e1f2e7;
+    --bad: #b03a2e;
+    --bad-soft: #f8e1de;
+    --strip-a: #d9826b;
+    --strip-b: #c96a52;
+    --waste: #ece6de;
+    --quilt: #efe7da;
+    --seam: #ffffff;
+    --warn: #d99a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917;
+      --card: #272320;
+      --text: #f1ece6;
+      --muted: #a89e94;
+      --border: #3c3631;
+      --accent: #e48a70;
+      --accent-soft: #3d2a24;
+      --ok: #6fcf97;
+      --ok-soft: #1f3528;
+      --bad: #f08b7e;
+      --bad-soft: #3e2422;
+      --strip-a: #c46a52;
+      --strip-b: #a95640;
+      --waste: #332e2a;
+      --quilt: #3a342f;
+      --seam: #1c1917;
+      --warn: #f2c14e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 24px; }
+  section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  h2 { font-size: 1.15rem; margin: 0 0 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+  label { display: block; font-size: .9rem; font-weight: 600; margin-bottom: 4px; }
+  .hint { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; }
+  .field { position: relative; }
+  input, select {
+    width: 100%;
+    font: inherit;
+    padding: 9px 40px 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+  }
+  select { padding-right: 10px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .unit { position: absolute; right: 10px; bottom: 9px; color: var(--muted); font-size: .9rem; pointer-events: none; }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: .95rem; }
+  details .grid { margin-top: 12px; }
+  .result { background: var(--accent-soft); border-radius: 10px; padding: 16px; margin-top: 4px; }
+  .big { font-size: 1.6rem; font-weight: 700; margin: 0; }
+  .result p { margin: 4px 0; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 14px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  .stat b { display: block; font-size: 1.15rem; }
+  .stat span { color: var(--muted); font-size: .82rem; }
+  .verdict { border-radius: 10px; padding: 16px; margin-top: 14px; }
+  .verdict.ok { background: var(--ok-soft); }
+  .verdict.ok .big { color: var(--ok); }
+  .verdict.bad { background: var(--bad-soft); }
+  .verdict.bad .big { color: var(--bad); }
+  .verdict p { margin: 4px 0; }
+  .muted { color: var(--muted); }
+  .diagram { margin-top: 14px; }
+  .diagram svg { width: 100%; height: auto; max-height: 320px; display: block; }
+  .diagram figcaption { color: var(--muted); font-size: .82rem; margin-top: 6px; }
+  .error { color: var(--bad); font-weight: 600; }
+  .head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+  .head h2 { margin: 0; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: .9rem; }
+  .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .seg label { margin: 0; padding: 5px 14px; cursor: pointer; font-weight: 600; color: var(--muted); }
+  .seg input:checked + label { background: var(--accent); color: #fff; }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .models { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .model { margin: 0; }
+  .model h3 { font-size: 1rem; margin: 0 0 2px; }
+  .model .sub { color: var(--muted); font-size: .85rem; margin: 0 0 8px; }
+  .model svg { width: 100%; height: auto; max-height: 380px; display: block; }
+  .model ul { margin: 8px 0 0; padding-left: 18px; font-size: .9rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: .82rem; margin-top: 12px; }
+  .legend i { display: inline-block; width: 14px; height: 4px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+  footer { color: var(--muted); font-size: .85rem; }
+  footer ul { padding-left: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kantbandsräknare</h1>
+  <p class="lead">Ange lapptäckets mått så räknas det ut hur mycket tyg du behöver till kantbandet. Du kan också kontrollera om en tygbit du redan har räcker.</p>
+
+  <section>
+    <div class="head">
+      <h2>1. Lapptäcket</h2>
+      <div class="seg" role="radiogroup" aria-label="Enhet för lapptäckets mått">
+        <input type="radio" name="qunit" id="qunit-cm" value="cm"><label for="qunit-cm">cm</label>
+        <input type="radio" name="qunit" id="qunit-in" value="in" checked><label for="qunit-in">in</label>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label for="qw">Bredd</label>
+        <input id="qw" type="number" inputmode="decimal" min="1" step="any" value="60">
+        <span class="unit" data-g="q">in</span>
+      </div>
+      <div class="field">
+        <label for="ql">Längd</label>
+        <input id="ql" type="number" inputmode="decimal" min="1" step="any" value="80">
+        <span class="unit" data-g="q">in</span>
+      </div>
+      <div class="field">
+        <label for="sw">Remsbredd <span class="hint">(alltid i inches, t.ex. 2,5″ för dubbelvikt band)</span></label>
+        <input id="sw" type="number" inputmode="decimal" min="0.1" step="any" value="2.5">
+        <span class="unit">in</span>
+      </div>
+    </div>
+    <details>
+      <summary>Fler inställningar</summary>
+      <div class="grid">
+        <div class="field">
+          <label for="extra">Extra längd <span class="hint">(inches, för hörn och för att skarva ihop början och slut)</span></label>
+          <input id="extra" type="number" inputmode="decimal" min="0" step="any" value="12">
+          <span class="unit">in</span>
+        </div>
+        <div class="field">
+          <label for="fw">Tygbredd i butik <span class="hint">(inches, användbar bredd utan stadkant, ≈ 42″ = 107 cm)</span></label>
+          <input id="fw" type="number" inputmode="decimal" min="1" step="any" value="42">
+          <span class="unit">in</span>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <h2>2. Så mycket tyg behöver du</h2>
+    <div id="need"></div>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>3. Räcker mitt tyg?</h2>
+      <div class="seg" role="radiogroup" aria-label="Enhet för tygbitens mått">
+        <input type="radio" name="hunit" id="hunit-cm" value="cm"><label for="hunit-cm">cm</label>
+        <input type="radio" name="hunit" id="hunit-in" value="in" checked><label for="hunit-in">in</label>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label for="hx">Tygbitens bredd</label>
+        <input id="hx" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 20">
+        <span class="unit" data-g="h">in</span>
+      </div>
+      <div class="field">
+        <label for="hy">Tygbitens längd</label>
+        <input id="hy" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 27">
+        <span class="unit" data-g="h">in</span>
+      </div>
+    </div>
+    <div id="have"></div>
+  </section>
+
+  <section>
+    <h2>4. Skarvarna runt täcket</h2>
+    <div id="model"></div>
+  </section>
+
+  <footer>
+    <p><b>Så räknas det</b></p>
+    <ul>
+      <li>Lapptäckets och tygbitens mått kan anges i cm eller inches. Allt som ska klippas visas i inches, med cm inom parentes.</li>
+      <li>Kantbandets längd = lapptäckets omkrets (2 × bredd + 2 × längd) + extra längd.</li>
+      <li>Remsorna klipps tvärs över tyget i vald remsbredd och skarvas ihop med diagonala sömmar. Varje diagonal skarv äter upp ungefär en remsbredd plus ½″ för sömsmån, alltså 3″ per skarv med 2,5″ remsor. Det räknas med.</li>
+      <li>Föreslagen mängd att köpa är avrundad uppåt till närmaste ⅛ yard (4,5″).</li>
+      <li>För din egen tygbit testas båda riktningarna (remsor längs bredden eller längden) och den som ger mest kantband används.</li>
+      <li>Räkningen gäller rakt klippta remsor, inte snedremsor.</li>
+      <li>Modellen i avsnitt 4 är ungefärlig. Den antar att kantbandet börjar mitt på nederkanten med halva extralängden som svans i varje ände. Var skarvarna hamnar beror på var du börjar sy.</li>
+    </ul>
+  </footer>
+</main>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const ids = ['qw', 'ql', 'sw', 'extra', 'fw', 'hx', 'hy'];
+  const raw = (id) => {
+    const v = parseFloat(String($(id).value).replace(',', '.'));
+    return isFinite(v) ? v : NaN;
+  };
+  const unitOf = (g) => document.querySelector(`input[name="${g}unit"]:checked`).value;
+  const groupOf = { qw: 'q', ql: 'q', hx: 'h', hy: 'h' };
+  // All calculations are done in inches; quilt and owned-fabric sizes may be entered in cm.
+  const num = (id) => {
+    const v = raw(id);
+    return groupOf[id] && unitOf(groupOf[id]) === 'cm' ? v / 2.54 : v;
+  };
+  const fmt = (v, d = 1) => {
+    const r = Math.round(v * Math.pow(10, d)) / Math.pow(10, d);
+    return r.toLocaleString('sv-SE', { maximumFractionDigits: d });
+  };
+  const inch = (v) => fmt(v, 2) + '″';
+  const yd = (v) => fmt(v / 36, 2) + ' yd';
+  const cmTxt = (v) => fmt(v * 2.54, 1) + ' cm';
+  const both = (v) => inch(v) + ' (' + cmTxt(v) + ')';
+  const len = (v) => inch(v) + ' (' + yd(v) + ' / ' + fmt(v * 2.54 / 100, 2) + ' m)';
+  const eighths = ['', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞'];
+  const ydFrac = (inches) => {
+    const e = Math.round(inches / 4.5);
+    const whole = Math.floor(e / 8), rest = e % 8;
+    return ((whole ? whole + ' ' : '') + eighths[rest]).trim() + ' yard';
+  };
+
+  // Diagonal seam: overlapping strips at a right angle uses about one strip
+  // width of length, plus the ¼″ seam allowance trimmed on each side.
+  function joinLoss(stripW) {
+    return stripW + 0.5;
+  }
+
+  // Total binding length from k strips of length len
+  function lengthFromStrips(k, len, loss) {
+    if (k <= 0 || len <= 0) return 0;
+    return k * len - (k - 1) * loss;
+  }
+
+  // Number of strips of length len needed to reach total
+  function stripsNeeded(total, len, loss) {
+    if (len <= loss) return Infinity;
+    if (total <= len) return 1;
+    return Math.ceil((total - loss) / (len - loss) - 1e-9);
+  }
+
+  function diagram(pieceW, pieceH, stripW, k) {
+    // Strips run horizontally across the width; k strips stacked along height.
+    const maxW = 600, maxH = 300;
+    const scale = Math.min(maxW / pieceW, maxH / pieceH);
+    const w = pieceW * scale, h = pieceH * scale;
+    let rects = '';
+    const shown = Math.min(k, Math.floor(pieceH / stripW + 1e-9));
+    for (let i = 0; i < shown; i++) {
+      const y = i * stripW * scale;
+      rects += `<rect x="0" y="${y}" width="${w}" height="${stripW * scale}" fill="var(${i % 2 ? '--strip-b' : '--strip-a'})"/>`;
+    }
+    return `<svg viewBox="-1 -1 ${w + 2} ${h + 2}" role="img" aria-label="Skiss över hur remsorna klipps ur tyget">
+      <rect x="0" y="0" width="${w}" height="${h}" fill="var(--waste)"/>
+      ${rects}
+      <rect x="0" y="0" width="${w}" height="${h}" fill="none" stroke="var(--muted)" stroke-width="1"/>
+    </svg>`;
+  }
+
+  // Draw the quilt with the binding laid around it, strip by strip.
+  function model(qw, ql, stripLen, k, loss, total, extra) {
+    const P = 2 * (qw + ql);
+    const tail = extra / 2;
+    const box = 220;
+    const sc = box / Math.max(qw, ql);
+    const W = qw * sc, H = ql * sc, pad = 16, bw = 7;
+    // Perimeter path, clockwise on screen, starting mid-bottom.
+    const pts = [[W / 2, H], [0, H], [0, 0], [W, 0], [W, H], [W / 2, H]];
+    const segs = [];
+    let acc = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
+      const l = Math.hypot(x2 - x1, y2 - y1) / sc;
+      segs.push({ x1, y1, x2, y2, a: acc, b: acc + l, l });
+      acc += l;
+    }
+    const at = (d) => {
+      d = Math.max(0, Math.min(P, d));
+      const g = segs.find((q) => d <= q.b + 1e-9) || segs[segs.length - 1];
+      const t = g.l ? (d - g.a) / g.l : 0;
+      return { x: g.x1 + (g.x2 - g.x1) * t, y: g.y1 + (g.y2 - g.y1) * t, dx: Math.sign(g.x2 - g.x1), dy: Math.sign(g.y2 - g.y1) };
+    };
+    const path = (a, b) => {
+      const p0 = at(a);
+      let d = `M${p0.x.toFixed(1)},${p0.y.toFixed(1)}`;
+      segs.forEach((g) => { if (g.b > a + 1e-9 && g.b < b - 1e-9) d += ` L${g.x2.toFixed(1)},${g.y2.toFixed(1)}`; });
+      const p1 = at(b);
+      return d + ` L${p1.x.toFixed(1)},${p1.y.toFixed(1)}`;
+    };
+    const corners = [segs[0].b, segs[1].b, segs[2].b, segs[3].b];
+    const near = 3; // inches: a seam closer than this to a corner is awkward to miter
+
+    // Strip boundaries along the binding (binding coordinate), converted to perimeter coordinate.
+    const produced = lengthFromStrips(k, stripLen, loss);
+    const bounds = [0];
+    for (let i = 1; i < k; i++) bounds.push(i * (stripLen - loss) + loss / 2);
+    bounds.push(produced);
+    const covered = Math.min(P, produced - tail);
+
+    let bands = '', ticks = '', nearCount = 0, seamsOnQuilt = 0;
+    for (let i = 0; i < k; i++) {
+      const a = Math.max(0, bounds[i] - tail), b = Math.min(P, bounds[i + 1] - tail);
+      if (b > a) bands += `<path d="${path(a, b)}" fill="none" stroke="var(${i % 2 ? '--strip-b' : '--strip-a'})" stroke-width="${bw}" stroke-linejoin="miter"/>`;
+    }
+    if (covered < P) {
+      bands += `<path d="${path(Math.max(0, covered), P)}" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="4 4"/>`;
+    }
+    const tick = (d, color, w) => {
+      const p = at(d), n = 6;
+      // diagonal across the band: along-edge + normal direction
+      const ux = p.dx - p.dy, uy = p.dy + p.dx;
+      return `<line x1="${(p.x - ux * n).toFixed(1)}" y1="${(p.y - uy * n).toFixed(1)}" x2="${(p.x + ux * n).toFixed(1)}" y2="${(p.y + uy * n).toFixed(1)}" stroke="var(${color})" stroke-width="${w}" stroke-linecap="round"/>`;
+    };
+    for (let i = 1; i < k; i++) {
+      const d = bounds[i] - tail;
+      if (d < 0 || d > covered) continue;
+      seamsOnQuilt++;
+      const isNear = corners.some((c) => Math.abs(c - d) < near);
+      if (isNear) { nearCount++; ticks += tick(d, '--warn', 4); }
+      ticks += tick(d, '--seam', 2);
+    }
+    // Closing join where the two ends meet
+    let closing = '';
+    if (covered >= P) {
+      const p = at(0);
+      closing = `<circle cx="${p.x}" cy="${p.y}" r="5" fill="none" stroke="var(--text)" stroke-width="1.5"/>`;
+    }
+    const svg = `<svg viewBox="${-pad} ${-pad} ${W + 2 * pad} ${H + 2 * pad}" role="img" aria-label="Modell av lapptäcket med kantband och skarvar">
+      <rect x="0" y="0" width="${W}" height="${H}" fill="var(--quilt)"/>
+      ${bands}${ticks}${closing}
+    </svg>`;
+    return { svg, seams: seamsOnQuilt, nearCount, enough: covered >= P };
+  }
+
+  function modelCard(title, sub, m) {
+    const items = [`<li><b>${m.seams}</b> skarvar längs kanten${m.enough ? ' + 1 skarv där ändarna möts' : ''}</li>`];
+    if (m.nearCount) items.push(`<li style="color:var(--warn)"><b>${m.nearCount}</b> ${m.nearCount === 1 ? 'skarv hamnar' : 'skarvar hamnar'} nära ett hörn</li>`);
+    if (!m.enough) items.push(`<li style="color:var(--bad)">Kantbandet räcker inte hela vägen runt</li>`);
+    return `<figure class="model"><h3>${title}</h3><p class="sub">${sub}</p>${m.svg}<ul>${items.join('')}</ul></figure>`;
+  }
+
+  function render() {
+    const qw = num('qw'), ql = num('ql'), sw = num('sw');
+    const extra = isNaN(num('extra')) ? 0 : num('extra');
+    const fw = num('fw');
+    const need = $('need'), have = $('have');
+
+    if (!(qw > 0 && ql > 0 && sw > 0 && fw > 0)) {
+      need.innerHTML = '<p class="error">Fyll i lapptäckets bredd och längd, remsbredd och tygbredd (alla större än 0).</p>';
+      have.innerHTML = '';
+      return;
+    }
+
+    const loss = joinLoss(sw);
+    const total = 2 * (qw + ql) + extra;
+    const n = stripsNeeded(total, fw, loss);
+    const modelEl = $('model');
+    const legend = `<div class="legend">
+        <span><i style="background:var(--strip-a)"></i><i style="background:var(--strip-b)"></i>en remsa per färg</span>
+        <span><i style="background:var(--warn)"></i>skarv nära hörn (under 3″)</span>
+        <span>○ där ändarna sys ihop</span>
+      </div>`;
+    const fullCard = isFinite(n)
+      ? modelCard('Hel tygbredd', `${n} remsor à ${inch(fw)}`, model(qw, ql, fw, n, loss, total, extra))
+      : '';
+    modelEl.innerHTML = `<div class="models">${fullCard}</div>${legend}<p class="muted" style="font-size:.85rem">Fyll i ditt resttyg i avsnitt 3 för att jämföra.</p>`;
+
+    if (!isFinite(n)) {
+      need.innerHTML = '<p class="error">Tygbredden måste vara större än det som går åt i varje diagonal skarv.</p>';
+    } else {
+      const fabricLen = n * sw;
+      const buyLen = Math.ceil(fabricLen / 4.5 - 1e-9) * 4.5;
+      const buyCm = Math.ceil(fabricLen * 2.54 / 10 - 1e-9) * 10;
+      const produced = lengthFromStrips(n, fw, loss);
+      need.innerHTML = `
+        <div class="result">
+          <p class="muted">Du behöver en tygbit på</p>
+          <p class="big">${inch(fw)} × ${inch(fabricLen)}</p>
+          <p>(${both(fw)} tygbredd, ${both(fabricLen)} längd)</p>
+          <p>Köp minst <b>${ydFrac(buyLen)}</b> (${inch(buyLen)}), eller <b>${buyCm} cm</b> om tyget säljs per 10 cm.</p>
+        </div>
+        <div class="stats">
+          <div class="stat"><b>${inch(total)}</b><span>kantband behövs (${yd(total)} / ${fmt(total * 2.54 / 100, 2)} m)</span></div>
+          <div class="stat"><b>${n} st</b><span>remsor à ${inch(sw)} × ${inch(fw)}</span></div>
+          <div class="stat"><b>${n - 1} st</b><span>diagonala skarvar (${inch(loss)} spill per skarv)</span></div>
+          <div class="stat"><b>${inch(produced)}</b><span>kantband du får fram (${yd(produced)} / ${fmt(produced * 2.54 / 100, 2)} m)</span></div>
+        </div>
+        <figure class="diagram" style="margin:14px 0 0">
+          ${diagram(fw, fabricLen, sw, n)}
+          <figcaption>Skiss: ${n} remsor klipps tvärs över tyget.</figcaption>
+        </figure>`;
+    }
+
+    // Do I have enough?
+    const hx = num('hx'), hy = num('hy');
+    if (!(hx > 0 && hy > 0)) {
+      have.innerHTML = '<p class="muted" style="margin-top:14px">Fyll i måtten på tyget du har för att se om det räcker.</p>';
+      return;
+    }
+    const showRest = (b, kRest) => {
+      const rest = modelCard('Ditt resttyg', `${kRest} remsor à ${both(b.len)}`, model(qw, ql, b.len, kRest, loss, total, extra));
+      modelEl.innerHTML = `<div class="models">${fullCard}${rest}</div>${legend}`;
+    };
+
+    // Option A: strips along hx (length hx), count floor(hy/sw)
+    const kA = Math.floor(hy / sw + 1e-9);
+    const lenA = lengthFromStrips(kA, hx, loss);
+    // Option B: strips along hy
+    const kB = Math.floor(hx / sw + 1e-9);
+    const lenB = lengthFromStrips(kB, hy, loss);
+
+    const useA = lenA >= lenB;
+    const best = useA
+      ? { k: kA, len: hx, total: lenA, pieceW: hx, pieceH: hy, dir: 'längs bredden (' + both(hx) + ' långa)' }
+      : { k: kB, len: hy, total: lenB, pieceW: hy, pieceH: hx, dir: 'längs längden (' + both(hy) + ' långa)' };
+
+    const enough = best.total >= total;
+    const diff = best.total - total;
+    let html = '';
+
+    if (best.k === 0) {
+      html = `<div class="verdict bad"><p class="big">Räcker inte</p>
+        <p>Tygbiten är smalare än remsbredden (${inch(sw)}), så det går inte att klippa några remsor.</p></div>`;
+    } else if (enough) {
+      const kUsed = stripsNeeded(total, best.len, loss);
+      html = `<div class="verdict ok"><p class="big">Ja, det räcker!</p>
+        <p>Du kan få fram <b>${len(best.total)}</b> kantband och behöver <b>${len(total)}</b>. Det blir <b>${len(diff)}</b> över.</p>
+        <p>Klipp <b>${kUsed} remsor</b> ${best.dir}. Du använder ${inch(best.pieceW)} × ${inch(kUsed * sw)} (${cmTxt(best.pieceW)} × ${cmTxt(kUsed * sw)}) av tyget.</p></div>`;
+    } else {
+      const short = -diff;
+      // How much longer would the piece need to be, keeping the same strip direction?
+      const kNeed = stripsNeeded(total, best.len, loss);
+      let extraTip = '';
+      if (isFinite(kNeed)) {
+        const needSide = kNeed * sw;
+        extraTip = `<p>Med remsor ${best.dir} skulle tygbiten behöva vara <b>${inch(best.pieceW)} × ${inch(needSide)}</b> (${cmTxt(best.pieceW)} × ${cmTxt(needSide)}, ${kNeed} remsor), alltså ${both(needSide - best.pieceH)} till.</p>`;
+      }
+      html = `<div class="verdict bad"><p class="big">Nej, det räcker inte</p>
+        <p>Du kan få fram <b>${len(best.total)}</b> kantband men behöver <b>${len(total)}</b>. Det fattas <b>${len(short)}</b>.</p>
+        ${extraTip}</div>`;
+    }
+
+    if (best.k > 0) {
+      const kShow = enough ? stripsNeeded(total, best.len, loss) : best.k;
+      showRest(best, kShow);
+      html += `<figure class="diagram" style="margin:14px 0 0">
+        ${diagram(best.pieceW, best.pieceH, sw, kShow)}
+        <figcaption>Skiss av din tygbit: ${kShow} remsor ${best.dir}. Grått = tyg som blir över.</figcaption>
+      </figure>`;
+    }
+
+    have.innerHTML = html;
+  }
+
+  ids.forEach((id) => $(id).addEventListener('input', render));
+
+  // Switching unit converts the values already entered.
+  ['q', 'h'].forEach((g) => {
+    document.querySelectorAll(`input[name="${g}unit"]`).forEach((radio) => {
+      radio.addEventListener('change', () => {
+        const toCm = unitOf(g) === 'cm';
+        Object.keys(groupOf).filter((id) => groupOf[id] === g).forEach((id) => {
+          const v = raw(id);
+          if (!isNaN(v)) $(id).value = String(Math.round((toCm ? v * 2.54 : v / 2.54) * 100) / 100);
+        });
+        document.querySelectorAll(`.unit[data-g="${g}"]`).forEach((el) => { el.textContent = toCm ? 'cm' : 'in'; });
+        render();
+      });
+    });
+  });
+  render();
+})();
+</script>
+</body>
+</html>
