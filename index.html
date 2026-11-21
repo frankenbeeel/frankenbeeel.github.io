@@ -69,7 +69,8 @@
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
   label { display: block; font-size: .9rem; font-weight: 600; margin-bottom: 4px; }
   .hint { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; }
-  .field { position: relative; }
+  .field { display: flex; flex-direction: column; justify-content: flex-end; }
+  .box { position: relative; display: block; }
   input, select {
     width: 100%;
     font: inherit;
@@ -81,7 +82,7 @@
   }
   select { padding-right: 10px; }
   input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .unit { position: absolute; right: 10px; bottom: 9px; color: var(--muted); font-size: .9rem; pointer-events: none; }
+  .unit { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .9rem; pointer-events: none; }
   details { margin-top: 14px; }
   summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: .95rem; }
   details .grid { margin-top: 12px; }
@@ -103,6 +104,8 @@
   .diagram svg { width: 100%; height: auto; max-height: 320px; display: block; }
   .diagram figcaption { color: var(--muted); font-size: .82rem; margin-top: 6px; }
   .error { color: var(--bad); font-weight: 600; }
+  .finished { margin: 12px 0 0; padding: 10px 12px; background: var(--accent-soft); border-radius: 8px; font-size: .92rem; }
+  .finished:empty { display: none; }
   .head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
   .head h2 { margin: 0; }
   .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: .9rem; }
@@ -138,32 +141,28 @@
     <div class="grid">
       <div class="field">
         <label for="qw">Bredd</label>
-        <input id="qw" type="number" inputmode="decimal" min="1" step="any" value="60">
-        <span class="unit" data-g="q">in</span>
+        <span class="box"><input id="qw" type="number" inputmode="decimal" min="1" step="any" value="60"><span class="unit" data-g="q">in</span></span>
       </div>
       <div class="field">
         <label for="ql">Längd</label>
-        <input id="ql" type="number" inputmode="decimal" min="1" step="any" value="80">
-        <span class="unit" data-g="q">in</span>
+        <span class="box"><input id="ql" type="number" inputmode="decimal" min="1" step="any" value="80"><span class="unit" data-g="q">in</span></span>
       </div>
       <div class="field">
         <label for="sw">Remsbredd <span class="hint">(alltid i inches, t.ex. 2,5″ för dubbelvikt band)</span></label>
-        <input id="sw" type="number" inputmode="decimal" min="0.1" step="any" value="2.5">
-        <span class="unit">in</span>
+        <span class="box"><input id="sw" type="number" inputmode="decimal" min="0.1" step="any" value="2.5"><span class="unit">in</span></span>
       </div>
     </div>
+    <p id="finished" class="finished"></p>
     <details>
       <summary>Fler inställningar</summary>
       <div class="grid">
         <div class="field">
           <label for="extra">Extra längd <span class="hint">(inches, för hörn och för att skarva ihop början och slut)</span></label>
-          <input id="extra" type="number" inputmode="decimal" min="0" step="any" value="12">
-          <span class="unit">in</span>
+          <span class="box"><input id="extra" type="number" inputmode="decimal" min="0" step="any" value="12"><span class="unit">in</span></span>
         </div>
         <div class="field">
           <label for="fw">Tygbredd i butik <span class="hint">(inches, användbar bredd utan stadkant, ≈ 42″ = 107 cm)</span></label>
-          <input id="fw" type="number" inputmode="decimal" min="1" step="any" value="42">
-          <span class="unit">in</span>
+          <span class="box"><input id="fw" type="number" inputmode="decimal" min="1" step="any" value="42"><span class="unit">in</span></span>
         </div>
       </div>
     </details>
@@ -185,13 +184,11 @@
     <div class="grid">
       <div class="field">
         <label for="hx">Tygbitens bredd</label>
-        <input id="hx" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 20">
-        <span class="unit" data-g="h">in</span>
+        <span class="box"><input id="hx" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 20"><span class="unit" data-g="h">in</span></span>
       </div>
       <div class="field">
         <label for="hy">Tygbitens längd</label>
-        <input id="hy" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 27">
-        <span class="unit" data-g="h">in</span>
+        <span class="box"><input id="hy" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 27"><span class="unit" data-g="h">in</span></span>
       </div>
     </div>
     <div id="have"></div>
@@ -211,6 +208,7 @@
       <li>Föreslagen mängd att köpa är avrundad uppåt till närmaste ⅛ yard (4,5″).</li>
       <li>För din egen tygbit testas båda riktningarna (remsor längs bredden eller längden) och den som ger mest kantband används.</li>
       <li>Räkningen gäller rakt klippta remsor, inte snedremsor.</li>
+      <li>Färdig bredd för dubbelvikt kantband ≈ (remsbredd − ¼″) ÷ 6. Remsan viks på mitten och lindas runt kanten, så den täcker framsidan, kanten och baksidan. ¼″ räknas bort för vikningen och vaddens tjocklek. Med tjock vadd blir kantbandet lite smalare.</li>
       <li>Modellen i avsnitt 4 är ungefärlig. Den antar att kantbandet börjar mitt på nederkanten med halva extralängden som svans i varje ände. Var skarvarna hamnar beror på var du börjar sy.</li>
     </ul>
   </footer>
@@ -227,7 +225,10 @@
   const unitOf = (g) => document.querySelector(`input[name="${g}unit"]:checked`).value;
   const groupOf = { qw: 'q', ql: 'q', hx: 'h', hy: 'h' };
   // All calculations are done in inches; quilt and owned-fabric sizes may be entered in cm.
+  // Exact value in inches for the unit-switchable fields, so switching back and forth doesn't drift.
+  const exact = {};
   const num = (id) => {
+    if (groupOf[id] && exact[id] !== undefined && !isNaN(exact[id].v) && exact[id].shown === $(id).value) return exact[id].v;
     const v = raw(id);
     return groupOf[id] && unitOf(groupOf[id]) === 'cm' ? v / 2.54 : v;
   };
@@ -366,7 +367,26 @@
     return `<figure class="model"><h3>${title}</h3><p class="sub">${sub}</p>${m.svg}<ul>${items.join('')}</ul></figure>`;
   }
 
+  // Inches as a fraction to the nearest 1/16, e.g. 0.375 -> "⅜″"
+  const uni = { '1/8': '⅛', '1/4': '¼', '3/8': '⅜', '1/2': '½', '5/8': '⅝', '3/4': '¾', '7/8': '⅞' };
+  function frac(v) {
+    let n = Math.round(v * 16), whole = Math.floor(n / 16), rest = n % 16, den = 16;
+    while (rest && rest % 2 === 0) { rest /= 2; den /= 2; }
+    const f = rest ? (uni[rest + '/' + den] || rest + '/' + den) : '';
+    return ((whole ? whole + (f ? ' ' : '') : '') + f || '0') + '″';
+  }
+
+  // Double-fold binding: the strip is folded in half and wraps the edge, so the
+  // width seen on the front is about (cut width − ¼″ for fold and batting) ÷ 6.
+  function finishedWidth(cut) {
+    return (cut - 0.25) / 6;
+  }
+
   function render() {
+    const swIn = num('sw');
+    $('finished').innerHTML = swIn > 0.25
+      ? `Färdig bredd på täcket: <b>≈ ${frac(finishedWidth(swIn))}</b> (${fmt(finishedWidth(swIn) * 2.54, 1)} cm) med dubbelvikt kantband. Sy fast det med ungefär samma sömsmån (${frac(finishedWidth(swIn))}) så fylls kanten ut ordentligt.`
+      : '';
     const qw = num('qw'), ql = num('ql'), sw = num('sw');
     const extra = isNaN(num('extra')) ? 0 : num('extra');
     const fw = num('fw');
@@ -408,7 +428,7 @@
         </div>
         <div class="stats">
           <div class="stat"><b>${inch(total)}</b><span>kantband behövs (${yd(total)} / ${fmt(total * 2.54 / 100, 2)} m)</span></div>
-          <div class="stat"><b>${n} st</b><span>remsor à ${inch(sw)} × ${inch(fw)}</span></div>
+          <div class="stat"><b>${n} st</b><span>remsor à ${inch(sw)} × ${inch(fw)}, färdig bredd ≈ ${frac(finishedWidth(sw))}</span></div>
           <div class="stat"><b>${n - 1} st</b><span>diagonala skarvar (${inch(loss)} spill per skarv)</span></div>
           <div class="stat"><b>${inch(produced)}</b><span>kantband du får fram (${yd(produced)} / ${fmt(produced * 2.54 / 100, 2)} m)</span></div>
         </div>
@@ -487,8 +507,13 @@
       radio.addEventListener('change', () => {
         const toCm = unitOf(g) === 'cm';
         Object.keys(groupOf).filter((id) => groupOf[id] === g).forEach((id) => {
-          const v = raw(id);
-          if (!isNaN(v)) $(id).value = String(Math.round((toCm ? v * 2.54 : v / 2.54) * 100) / 100);
+          const raw0 = raw(id);
+          if (isNaN(raw0)) return;
+          // Value in inches as it was before the switch (exact if nothing was typed since).
+          const prev = exact[id] && exact[id].shown === $(id).value ? exact[id].v : (toCm ? raw0 : raw0 / 2.54);
+          const shown = String(Math.round((toCm ? prev * 2.54 : prev) * 100) / 100);
+          $(id).value = shown;
+          exact[id] = { v: prev, shown };
         });
         document.querySelectorAll(`.unit[data-g="${g}"]`).forEach((el) => { el.textContent = toCm ? 'cm' : 'in'; });
         render();
