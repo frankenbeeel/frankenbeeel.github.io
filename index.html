@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kantbandsräknare</title>
+<meta name="description" content="Räkna ut hur mycket tyg som behövs till kantband för ett lapptäcke, och kontrollera om ditt tyg räcker.">
+<style>
+  :root {
+    --bg: #f7f4ef;
+    --card: #ffffff;
+    --text: #2b2622;
+    --muted: #6f665e;
+    --border: #e2dbd2;
+    --accent: #b5523b;
+    --accent-soft: #f6e4de;
+    --ok: #2f7d4f;
+    --ok-soft: #e1f2e7;
+    --bad: #b03a2e;
+    --bad-soft: #f8e1de;
+    --strip-a: #d9826b;
+    --strip-b: #c96a52;
+    --waste: #ece6de;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917;
+      --card: #272320;
+      --text: #f1ece6;
+      --muted: #a89e94;
+      --border: #3c3631;
+      --accent: #e48a70;
+      --accent-soft: #3d2a24;
+      --ok: #6fcf97;
+      --ok-soft: #1f3528;
+      --bad: #f08b7e;
+      --bad-soft: #3e2422;
+      --strip-a: #c46a52;
+      --strip-b: #a95640;
+      --waste: #332e2a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 24px; }
+  section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  h2 { font-size: 1.15rem; margin: 0 0 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+  label { display: block; font-size: .9rem; font-weight: 600; margin-bottom: 4px; }
+  .hint { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; }
+  .field { position: relative; }
+  input, select {
+    width: 100%;
+    font: inherit;
+    padding: 9px 40px 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+  }
+  select { padding-right: 10px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .unit { position: absolute; right: 10px; bottom: 9px; color: var(--muted); font-size: .9rem; pointer-events: none; }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: .95rem; }
+  details .grid { margin-top: 12px; }
+  .result { background: var(--accent-soft); border-radius: 10px; padding: 16px; margin-top: 4px; }
+  .big { font-size: 1.6rem; font-weight: 700; margin: 0; }
+  .result p { margin: 4px 0; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 14px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  .stat b { display: block; font-size: 1.15rem; }
+  .stat span { color: var(--muted); font-size: .82rem; }
+  .verdict { border-radius: 10px; padding: 16px; margin-top: 14px; }
+  .verdict.ok { background: var(--ok-soft); }
+  .verdict.ok .big { color: var(--ok); }
+  .verdict.bad { background: var(--bad-soft); }
+  .verdict.bad .big { color: var(--bad); }
+  .verdict p { margin: 4px 0; }
+  .muted { color: var(--muted); }
+  .diagram { margin-top: 14px; }
+  .diagram svg { width: 100%; height: auto; max-height: 320px; display: block; }
+  .diagram figcaption { color: var(--muted); font-size: .82rem; margin-top: 6px; }
+  .error { color: var(--bad); font-weight: 600; }
+  footer { color: var(--muted); font-size: .85rem; }
+  footer ul { padding-left: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kantbandsräknare</h1>
+  <p class="lead">Ange lapptäckets mått så räknas det ut hur mycket tyg du behöver till kantbandet. Du kan också kontrollera om en tygbit du redan har räcker.</p>
+
+  <section>
+    <h2>1. Lapptäcket</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="qw">Bredd</label>
+        <input id="qw" type="number" inputmode="decimal" min="1" step="any" value="150">
+        <span class="unit">cm</span>
+      </div>
+      <div class="field">
+        <label for="ql">Längd</label>
+        <input id="ql" type="number" inputmode="decimal" min="1" step="any" value="200">
+        <span class="unit">cm</span>
+      </div>
+      <div class="field">
+        <label for="sw">Remsbredd <span class="hint">(klippbredd, t.ex. 6 cm för dubbelvikt band)</span></label>
+        <input id="sw" type="number" inputmode="decimal" min="1" step="any" value="6">
+        <span class="unit">cm</span>
+      </div>
+    </div>
+    <details>
+      <summary>Fler inställningar</summary>
+      <div class="grid">
+        <div class="field">
+          <label for="extra">Extra längd <span class="hint">(för hörn och för att skarva ihop början och slut)</span></label>
+          <input id="extra" type="number" inputmode="decimal" min="0" step="any" value="30">
+          <span class="unit">cm</span>
+        </div>
+        <div class="field">
+          <label for="join">Skarvning av remsor</label>
+          <select id="join">
+            <option value="diag" selected>Diagonal skarv (åtgår ≈ en remsbredd)</option>
+            <option value="straight">Rak skarv (åtgår ≈ 1,5 cm)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="fw">Tygbredd i butik <span class="hint">(användbar bredd utan stadkant)</span></label>
+          <input id="fw" type="number" inputmode="decimal" min="1" step="any" value="110">
+          <span class="unit">cm</span>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <h2>2. Så mycket tyg behöver du</h2>
+    <div id="need"></div>
+  </section>
+
+  <section>
+    <h2>3. Räcker mitt tyg?</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="hx">Tygbitens bredd</label>
+        <input id="hx" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 50">
+        <span class="unit">cm</span>
+      </div>
+      <div class="field">
+        <label for="hy">Tygbitens längd</label>
+        <input id="hy" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 70">
+        <span class="unit">cm</span>
+      </div>
+    </div>
+    <div id="have"></div>
+  </section>
+
+  <footer>
+    <p><b>Så räknas det</b></p>
+    <ul>
+      <li>Kantbandets längd = lapptäckets omkrets (2 × bredd + 2 × längd) + extra längd.</li>
+      <li>Remsorna klipps tvärs över tyget i vald remsbredd och skarvas ihop. Varje skarv äter upp lite längd, vilket räknas med.</li>
+      <li>För din egen tygbit testas båda riktningarna (remsor längs bredden eller längden) och den som ger mest kantband används.</li>
+      <li>Räkningen gäller rakt klippta remsor, inte snedremsor.</li>
+    </ul>
+  </footer>
+</main>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const ids = ['qw', 'ql', 'sw', 'extra', 'join', 'fw', 'hx', 'hy'];
+  const num = (id) => {
+    const v = parseFloat(String($(id).value).replace(',', '.'));
+    return isFinite(v) ? v : NaN;
+  };
+  const fmt = (v, d = 1) => {
+    const r = Math.round(v * Math.pow(10, d)) / Math.pow(10, d);
+    return r.toLocaleString('sv-SE', { maximumFractionDigits: d });
+  };
+  const cm = (v) => fmt(v) + ' cm';
+  const m = (v) => fmt(v / 100, 2) + ' m';
+
+  function joinLoss(stripW) {
+    return $('join').value === 'diag' ? stripW : 1.5;
+  }
+
+  // Total binding length from k strips of length len
+  function lengthFromStrips(k, len, loss) {
+    if (k <= 0 || len <= 0) return 0;
+    return k * len - (k - 1) * loss;
+  }
+
+  // Number of strips of length len needed to reach total
+  function stripsNeeded(total, len, loss) {
+    if (len <= loss) return Infinity;
+    if (total <= len) return 1;
+    return Math.ceil((total - loss) / (len - loss) - 1e-9);
+  }
+
+  function diagram(pieceW, pieceH, stripW, k) {
+    // Strips run horizontally across the width; k strips stacked along height.
+    const maxW = 600, maxH = 300;
+    const scale = Math.min(maxW / pieceW, maxH / pieceH);
+    const w = pieceW * scale, h = pieceH * scale;
+    let rects = '';
+    const shown = Math.min(k, Math.floor(pieceH / stripW + 1e-9));
+    for (let i = 0; i < shown; i++) {
+      const y = i * stripW * scale;
+      rects += `<rect x="0" y="${y}" width="${w}" height="${stripW * scale}" fill="var(${i % 2 ? '--strip-b' : '--strip-a'})"/>`;
+    }
+    return `<svg viewBox="-1 -1 ${w + 2} ${h + 2}" role="img" aria-label="Skiss över hur remsorna klipps ur tyget">
+      <rect x="0" y="0" width="${w}" height="${h}" fill="var(--waste)"/>
+      ${rects}
+      <rect x="0" y="0" width="${w}" height="${h}" fill="none" stroke="var(--muted)" stroke-width="1"/>
+    </svg>`;
+  }
+
+  function render() {
+    const qw = num('qw'), ql = num('ql'), sw = num('sw');
+    const extra = isNaN(num('extra')) ? 0 : num('extra');
+    const fw = num('fw');
+    const need = $('need'), have = $('have');
+
+    if (!(qw > 0 && ql > 0 && sw > 0 && fw > 0)) {
+      need.innerHTML = '<p class="error">Fyll i lapptäckets bredd och längd, remsbredd och tygbredd (alla större än 0).</p>';
+      have.innerHTML = '';
+      return;
+    }
+
+    const loss = joinLoss(sw);
+    const total = 2 * (qw + ql) + extra;
+    const n = stripsNeeded(total, fw, loss);
+
+    if (!isFinite(n)) {
+      need.innerHTML = '<p class="error">Tygbredden måste vara större än det som går åt i varje skarv.</p>';
+    } else {
+      const fabricLen = n * sw;
+      const produced = lengthFromStrips(n, fw, loss);
+      need.innerHTML = `
+        <div class="result">
+          <p class="muted">Du behöver en tygbit på</p>
+          <p class="big">${cm(fw)} × ${cm(fabricLen)}</p>
+          <p>(${fmt(fw)} cm tygbredd, ${fmt(fabricLen)} cm längd)</p>
+        </div>
+        <div class="stats">
+          <div class="stat"><b>${m(total)}</b><span>kantband behövs</span></div>
+          <div class="stat"><b>${n} st</b><span>remsor à ${cm(sw)} × ${cm(fw)}</span></div>
+          <div class="stat"><b>${n - 1} st</b><span>skarvar</span></div>
+          <div class="stat"><b>${m(produced)}</b><span>kantband du får fram</span></div>
+        </div>
+        <figure class="diagram" style="margin:14px 0 0">
+          ${diagram(fw, fabricLen, sw, n)}
+          <figcaption>Skiss: ${n} remsor klipps tvärs över tyget.</figcaption>
+        </figure>`;
+    }
+
+    // Do I have enough?
+    const hx = num('hx'), hy = num('hy');
+    if (!(hx > 0 && hy > 0)) {
+      have.innerHTML = '<p class="muted" style="margin-top:14px">Fyll i måtten på tyget du har för att se om det räcker.</p>';
+      return;
+    }
+
+    // Option A: strips along hx (length hx), count floor(hy/sw)
+    const kA = Math.floor(hy / sw + 1e-9);
+    const lenA = lengthFromStrips(kA, hx, loss);
+    // Option B: strips along hy
+    const kB = Math.floor(hx / sw + 1e-9);
+    const lenB = lengthFromStrips(kB, hy, loss);
+
+    const useA = lenA >= lenB;
+    const best = useA
+      ? { k: kA, len: hx, total: lenA, pieceW: hx, pieceH: hy, dir: 'längs bredden (' + cm(hx) + ' långa)' }
+      : { k: kB, len: hy, total: lenB, pieceW: hy, pieceH: hx, dir: 'längs längden (' + cm(hy) + ' långa)' };
+
+    const enough = best.total >= total;
+    const diff = best.total - total;
+    let html = '';
+
+    if (best.k === 0) {
+      html = `<div class="verdict bad"><p class="big">Räcker inte</p>
+        <p>Tygbiten är smalare än remsbredden (${cm(sw)}), så det går inte att klippa några remsor.</p></div>`;
+    } else if (enough) {
+      const kUsed = stripsNeeded(total, best.len, loss);
+      html = `<div class="verdict ok"><p class="big">Ja, det räcker!</p>
+        <p>Du kan få fram <b>${m(best.total)}</b> kantband och behöver <b>${m(total)}</b>. Det blir <b>${m(diff)}</b> över.</p>
+        <p>Klipp <b>${kUsed} remsor</b> ${best.dir}. Du använder ${cm(best.pieceW)} × ${cm(kUsed * sw)} av tyget.</p></div>`;
+    } else {
+      const short = -diff;
+      // How much longer would the piece need to be, keeping the same strip direction?
+      const kNeed = stripsNeeded(total, best.len, loss);
+      let extraTip = '';
+      if (isFinite(kNeed)) {
+        const needSide = kNeed * sw;
+        extraTip = `<p>Med remsor ${best.dir} skulle tygbiten behöva vara <b>${cm(best.pieceW)} × ${cm(needSide)}</b> (${kNeed} remsor), alltså ${cm(needSide - best.pieceH)} till.</p>`;
+      }
+      html = `<div class="verdict bad"><p class="big">Nej, det räcker inte</p>
+        <p>Du kan få fram <b>${m(best.total)}</b> kantband men behöver <b>${m(total)}</b>. Det fattas <b>${m(short)}</b>.</p>
+        ${extraTip}</div>`;
+    }
+
+    if (best.k > 0) {
+      const kShow = enough ? stripsNeeded(total, best.len, loss) : best.k;
+      html += `<figure class="diagram" style="margin:14px 0 0">
+        ${diagram(best.pieceW, best.pieceH, sw, kShow)}
+        <figcaption>Skiss av din tygbit: ${kShow} remsor ${best.dir}. Grått = tyg som blir över.</figcaption>
+      </figure>`;
+    }
+
+    have.innerHTML = html;
+  }
+
+  ids.forEach((id) => $(id).addEventListener('input', render));
+  render();
+})();
+</script>
+</body>
+</html>
