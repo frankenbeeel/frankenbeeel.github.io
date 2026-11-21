@@ -155,7 +155,7 @@
   #ft-canvas { display: block; max-width: 100%; max-height: 80vh; width: auto; height: auto; margin: 0 auto; cursor: crosshair; background: #fff; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .loupe { position: fixed; z-index: 10; width: 150px; height: 150px; border-radius: 50%; border: 3px solid var(--accent); box-shadow: 0 4px 16px rgba(0,0,0,.3); background: #fff; pointer-events: none; display: none; }
   .ft-empty { text-align: center; color: var(--muted); padding: 48px 12px; margin: 0; }
-  .ft-empty[hidden] { display: none; }
+  .ft-empty[hidden], #ft-canvas[hidden] { display: none; }
   .paste-wrap { position: relative; margin-top: 12px; }
   .paste-wrap[hidden] { display: none; }
   .paste-zone { min-height: 96px; border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); color: transparent; caret-color: transparent; overflow: hidden; outline: none; -webkit-user-select: text; user-select: text; }
@@ -312,7 +312,8 @@
     </div>
     <div class="ft-tools">
       <button type="button" class="btn small ghost" id="ft-undo" disabled>Ångra</button>
-      <button type="button" class="btn small ghost" id="ft-clear" disabled>Rensa allt</button>
+      <button type="button" class="btn small ghost" id="ft-clear" disabled>Töm alla rutor</button>
+      <button type="button" class="btn small ghost" id="ft-remove-pattern" disabled>Ta bort mönstret</button>
       <button type="button" class="btn small" id="ft-download" disabled>Ladda ner bild</button>
     </div>
     <p id="ft-status" class="ft-status" role="status"></p>
@@ -948,6 +949,7 @@
     $('ft-undo').disabled = !undo.length;
     $('ft-clear').disabled = !st.fills.length;
     $('ft-download').disabled = !labels;
+    $('ft-remove-pattern').disabled = !st.pattern;
   }
   $('ft-undo').addEventListener('click', async () => {
     const s = undo.pop();
@@ -957,6 +959,19 @@
     st.fabrics = o.fabrics;
     await Promise.all(st.fabrics.filter((f) => !fabImgs.has(f.id)).map(async (f) => fabImgs.set(f.id, await loadImage(f.src))));
     renderPalette(); render(); save(); status('');
+  });
+  $('ft-remove-pattern').addEventListener('click', () => {
+    if (!st.pattern) return;
+    if (!confirm('Ta bort mönstret och allt du har fyllt i? Tygerna finns kvar.')) return;
+    st.pattern = null; st.fills = [];
+    undo = [];
+    labels = null; lum = null; W = H = 0;
+    tiles.clear();
+    canvas.hidden = true;
+    $('ft-empty').hidden = false;
+    hideLoupe();
+    render(); save();
+    status('Mönstret är borttaget. Ladda upp eller klistra in ett nytt.');
   });
   $('ft-clear').addEventListener('click', () => {
     if (!st.fills.length) return;
