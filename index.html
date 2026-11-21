@@ -274,7 +274,11 @@
       <label class="btn" for="ft-fabric-file">Lägg till tyger</label>
       <input type="file" id="ft-fabric-file" class="vh" accept="image/png,image/jpeg" multiple>
     </div>
-    <p class="muted" style="font-size:.85rem;margin:10px 0 0">Mönstret ska vara en PNG- eller JPG-bild med mörka linjer på ljus botten. Allt stannar i din webbläsare, inget laddas upp till någon server.</p>
+    <div class="ft-uploads" style="margin-top:10px">
+      <button type="button" class="btn ghost" id="ft-paste-pattern">Klistra in mönster</button>
+      <button type="button" class="btn ghost" id="ft-paste-fabric">Klistra in tyg</button>
+    </div>
+    <p class="muted" style="font-size:.85rem;margin:10px 0 0">Har du kopierat en bild kan du klistra in den med knapparna, eller trycka <span class="kbd-paste">Ctrl+V</span> var som helst på sidan: första bilden blir mönstret, sedan blir de tyger. Mönstret ska ha mörka linjer på ljus botten. Allt stannar i din webbläsare, inget laddas upp till någon server.</p>
     <details>
       <summary>Linjekänslighet</summary>
       <div class="field" style="margin-top:12px">
@@ -311,6 +315,7 @@
       <li>Klicka i en ruta som redan har tyg för att byta tyget. Välj <i>Sudda</i> och klicka för att ta bort det.</li>
       <li>Om tyget fyller mer än rutan finns det troligen ett litet glapp i linjen. Ångra och höj linjekänsligheten under <i>Linjekänslighet</i>.</li>
       <li>Ett tygs storlek ändras med reglaget när tyget är valt. Vid 100&nbsp;% är en tygbild en femtedel så bred som mönstret.</li>
+      <li>Vill du byta mönster med Ctrl+V/⌘V när det redan finns ett, använd knappen <i>Klistra in mönster</i> i stället.</li>
       <li>Mönster, tyger och det du har fyllt i sparas i den här webbläsaren till nästa gång, men bara på den här enheten.</li>
     </ul>
   </footer>
@@ -978,27 +983,21 @@
   });
 
   // ---------- Uploads ----------
-  $('ft-pattern-file').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
+  async function addPattern(file) {
     try {
       status('Läser in mönstret…');
       const src = await fileToDataURL(file, MAX_PATTERN, 'image/png');
-      if (st.fills.length) pushUndo();
       st.pattern = src; st.fills = [];
       undo = [];
       await usePattern(src);
       render(); save();
       status(st.fabrics.length ? 'Välj ett tyg och klicka i en ruta.' : 'Lägg nu till några tyger.');
     } catch (err) {
-      status('Bilden gick inte att läsa. Använd en PNG- eller JPG-fil.');
+      status('Bilden gick inte att läsa. Använd en PNG- eller JPG-bild.');
     }
-  });
+  }
 
-  $('ft-fabric-file').addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files);
-    e.target.value = '';
+  async function addFabrics(files) {
     let added = 0;
     for (const file of files) {
       try {
@@ -1008,11 +1007,66 @@
         st.fabrics.push({ id, src, scale: 100 });
         st.selected = id;
         added++;
-      } catch (err) { /* skip unreadable file */ }
+      } catch (err) { /* skip unreadable image */ }
     }
     renderPalette(); save();
     status(added < files.length ? 'Någon bild gick inte att läsa. Använd PNG eller JPG.'
-      : labels ? 'Klicka i en ruta i mönstret.' : 'Ladda upp ett mönster också.');
+      : labels ? 'Klicka i en ruta i mönstret.' : 'Lägg in ett mönster också.');
+  }
+
+  $('ft-pattern-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (file) addPattern(file);
+  });
+
+  $('ft-fabric-file').addEventListener('change', (e) => {
+    const files = Array.from(e.target.files);
+    e.target.value = '';
+    if (files.length) addFabrics(files);
+  });
+
+  // ---------- Paste ----------
+  // Buttons read the clipboard directly (works on phones too, the browser may ask first).
+  async function clipboardImages() {
+    if (!navigator.clipboard || !navigator.clipboard.read) throw new Error('unsupported');
+    const out = [];
+    for (const item of await navigator.clipboard.read()) {
+      const type = item.types.find((t) => t.startsWith('image/'));
+      if (type) out.push(await item.getType(type));
+    }
+    return out;
+  }
+  const pasteHelp = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘V' : 'Ctrl+V';
+  document.querySelectorAll('.kbd-paste').forEach((el) => { el.textContent = pasteHelp; });
+  async function pasteFromButton(toPattern) {
+    let imgs;
+    try {
+      imgs = await clipboardImages();
+    } catch (err) {
+      status(err && err.name === 'NotAllowedError'
+        ? 'Webbläsaren gav inte tillgång till urklipp. Tryck ' + pasteHelp + ' på sidan i stället.'
+        : 'Den här webbläsaren kan inte läsa urklipp via knappen. Tryck ' + pasteHelp + ' på sidan i stället.');
+      return;
+    }
+    if (!imgs.length) { status('Det finns ingen bild i urklipp. Kopiera en bild först.'); return; }
+    if (toPattern) addPattern(imgs[0]); else addFabrics(imgs);
+  }
+  $('ft-paste-pattern').addEventListener('click', () => pasteFromButton(true));
+  $('ft-paste-fabric').addEventListener('click', () => pasteFromButton(false));
+
+  // Ctrl+V / ⌘V anywhere on the Färgtestare: first image becomes the pattern, after that fabrics.
+  document.addEventListener('paste', (e) => {
+    if ($('view-farg').hidden) return;
+    const files = Array.from((e.clipboardData && e.clipboardData.items) || [])
+      .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+      .map((it) => it.getAsFile()).filter(Boolean);
+    if (!files.length) {
+      if (!(e.target.closest && e.target.closest('input'))) status('Det fanns ingen bild i urklipp. Kopiera en bild först.');
+      return;
+    }
+    e.preventDefault();
+    if (!st.pattern) addPattern(files[0]); else addFabrics(files);
   });
 
   $('ft-threshold').addEventListener('input', () => {
