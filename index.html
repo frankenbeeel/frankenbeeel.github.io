@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kantbandsräknare</title>
+<title>Quilthjälpen</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='26' height='26' rx='3' fill='%23efe7da' stroke='%23b5523b' stroke-width='4'/%3E%3Cpath d='M3 12h4M29 20h-4M12 3v4' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
-<meta name="description" content="Räkna ut hur mycket tyg som behövs till kantband för ett lapptäcke, och kontrollera om ditt tyg räcker.">
+<meta name="description" content="Quilthjälpen: verktyg för quiltare. Räkna ut hur mycket tyg som behövs till kantband för ett lapptäcke, och kontrollera om ditt tyg räcker.">
 <style>
   :root {
     --bg: #f7f4ef;
@@ -55,7 +55,17 @@
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     line-height: 1.5;
   }
-  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  .site { background: var(--card); border-bottom: 1px solid var(--border); }
+  .site-inner { max-width: 760px; margin: 0 auto; padding: 16px 16px 0; }
+  .brand { font-size: 1.6rem; font-weight: 800; margin: 0; color: var(--accent); letter-spacing: -.01em; }
+  .brand a { color: inherit; text-decoration: none; }
+  .menu { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 0; padding: 0; list-style: none; }
+  .menu a, .menu span { display: block; padding: 8px 14px; border-radius: 8px 8px 0 0; font-weight: 600; font-size: .95rem; text-decoration: none; color: var(--muted); border-bottom: 3px solid transparent; }
+  .menu a:hover { color: var(--text); }
+  .menu a[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
+  .menu .soon { opacity: .6; cursor: default; font-weight: 400; font-style: italic; }
+  .view[hidden] { display: none; }
   h1 { font-size: 1.9rem; margin: 0 0 4px; }
   .lead { color: var(--muted); margin: 0 0 24px; }
   section {
@@ -126,7 +136,19 @@
 </style>
 </head>
 <body>
+<header class="site">
+  <div class="site-inner">
+    <p class="brand"><a href="#kantband">Quilthjälpen</a></p>
+    <nav aria-label="Meny">
+      <ul class="menu">
+        <li><a href="#kantband" data-view="kantband">Kantbandsräknare</a></li>
+        <li><span class="soon" title="Fler verktyg är på väg">Fler verktyg kommer snart</span></li>
+      </ul>
+    </nav>
+  </div>
+</header>
 <main>
+ <div class="view" id="view-kantband">
   <h1>Kantbandsräknare</h1>
   <p class="lead">Ange lapptäckets mått så räknas det ut hur mycket tyg du behöver till kantbandet. Du kan också kontrollera om en tygbit du redan har räcker.</p>
 
@@ -212,9 +234,29 @@
       <li>Modellen i avsnitt 4 är ungefärlig. Den antar att kantbandet börjar mitt på nederkanten med halva extralängden som svans i varje ände. Var skarvarna hamnar beror på var du börjar sy.</li>
     </ul>
   </footer>
+ </div>
 </main>
 
 <script>
+// Menu: each tool is a <div class="view" id="view-NAME"> shown when the URL hash is #NAME.
+(function () {
+  const views = Array.from(document.querySelectorAll('.view'));
+  const fallback = 'kantband';
+  function show() {
+    let name = location.hash.slice(1);
+    if (!document.getElementById('view-' + name)) name = fallback;
+    views.forEach((v) => { v.hidden = v.id !== 'view-' + name; });
+    document.querySelectorAll('.menu a[data-view]').forEach((a) => {
+      if (a.dataset.view === name) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+    const h1 = document.querySelector('#view-' + name + ' h1');
+    document.title = (h1 ? h1.textContent + ' · ' : '') + 'Quilthjälpen';
+  }
+  window.addEventListener('hashchange', show);
+  show();
+})();
+
 (function () {
   const $ = (id) => document.getElementById(id);
   const ids = ['qw', 'ql', 'sw', 'extra', 'fw', 'hx', 'hy'];
