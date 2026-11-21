@@ -314,6 +314,7 @@
       <button type="button" class="btn small ghost" id="ft-undo" disabled>Ångra</button>
       <button type="button" class="btn small ghost" id="ft-clear" disabled>Töm alla rutor</button>
       <button type="button" class="btn small ghost" id="ft-remove-pattern" disabled>Ta bort mönstret</button>
+      <button type="button" class="btn small ghost" id="ft-reset" disabled>Börja om</button>
       <button type="button" class="btn small" id="ft-download" disabled>Ladda ner bild</button>
     </div>
     <p id="ft-status" class="ft-status" role="status"></p>
@@ -912,6 +913,7 @@
     const f = st.fabrics.find((x) => x.id === st.selected);
     $('ft-fabric-tools').hidden = !f;
     if (f) $('ft-scale').value = f.scale;
+    updateButtons();
   }
 
   $('ft-palette').addEventListener('click', (e) => {
@@ -950,6 +952,7 @@
     $('ft-clear').disabled = !st.fills.length;
     $('ft-download').disabled = !labels;
     $('ft-remove-pattern').disabled = !st.pattern;
+    $('ft-reset').disabled = !st.pattern && !st.fabrics.length;
   }
   $('ft-undo').addEventListener('click', async () => {
     const s = undo.pop();
@@ -960,9 +963,7 @@
     await Promise.all(st.fabrics.filter((f) => !fabImgs.has(f.id)).map(async (f) => fabImgs.set(f.id, await loadImage(f.src))));
     renderPalette(); render(); save(); status('');
   });
-  $('ft-remove-pattern').addEventListener('click', () => {
-    if (!st.pattern) return;
-    if (!confirm('Ta bort mönstret och allt du har fyllt i? Tygerna finns kvar.')) return;
+  function dropPattern() {
     st.pattern = null; st.fills = [];
     undo = [];
     labels = null; lum = null; W = H = 0;
@@ -970,8 +971,22 @@
     canvas.hidden = true;
     $('ft-empty').hidden = false;
     hideLoupe();
+  }
+  $('ft-remove-pattern').addEventListener('click', () => {
+    if (!st.pattern) return;
+    if (!confirm('Ta bort mönstret och allt du har fyllt i? Tygerna finns kvar.')) return;
+    dropPattern();
     render(); save();
     status('Mönstret är borttaget. Ladda upp eller klistra in ett nytt.');
+  });
+  $('ft-reset').addEventListener('click', () => {
+    if (!st.pattern && !st.fabrics.length) return;
+    if (!confirm('Ta bort mönstret och alla tyger och börja om från början?')) return;
+    dropPattern();
+    st.fabrics = []; st.selected = null;
+    fabImgs.clear();
+    renderPalette(); render(); save();
+    status('Allt är borttaget. Lägg in ett mönster och några tyger för att börja.');
   });
   $('ft-clear').addEventListener('click', () => {
     if (!st.fills.length) return;
