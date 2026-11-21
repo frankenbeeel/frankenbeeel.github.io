@@ -110,18 +110,18 @@
     <div class="grid">
       <div class="field">
         <label for="qw">Bredd</label>
-        <input id="qw" type="number" inputmode="decimal" min="1" step="any" value="150">
-        <span class="unit">cm</span>
+        <input id="qw" type="number" inputmode="decimal" min="1" step="any" value="60">
+        <span class="unit">in</span>
       </div>
       <div class="field">
         <label for="ql">Längd</label>
-        <input id="ql" type="number" inputmode="decimal" min="1" step="any" value="200">
-        <span class="unit">cm</span>
+        <input id="ql" type="number" inputmode="decimal" min="1" step="any" value="80">
+        <span class="unit">in</span>
       </div>
       <div class="field">
-        <label for="sw">Remsbredd <span class="hint">(klippbredd, t.ex. 6 cm för dubbelvikt band)</span></label>
-        <input id="sw" type="number" inputmode="decimal" min="1" step="any" value="6">
-        <span class="unit">cm</span>
+        <label for="sw">Remsbredd <span class="hint">(klippbredd, t.ex. 2,5″ för dubbelvikt band)</span></label>
+        <input id="sw" type="number" inputmode="decimal" min="0.1" step="any" value="2.5">
+        <span class="unit">in</span>
       </div>
     </div>
     <details>
@@ -129,20 +129,13 @@
       <div class="grid">
         <div class="field">
           <label for="extra">Extra längd <span class="hint">(för hörn och för att skarva ihop början och slut)</span></label>
-          <input id="extra" type="number" inputmode="decimal" min="0" step="any" value="30">
-          <span class="unit">cm</span>
-        </div>
-        <div class="field">
-          <label for="join">Skarvning av remsor</label>
-          <select id="join">
-            <option value="diag" selected>Diagonal skarv (åtgår ≈ en remsbredd)</option>
-            <option value="straight">Rak skarv (åtgår ≈ 1,5 cm)</option>
-          </select>
+          <input id="extra" type="number" inputmode="decimal" min="0" step="any" value="12">
+          <span class="unit">in</span>
         </div>
         <div class="field">
           <label for="fw">Tygbredd i butik <span class="hint">(användbar bredd utan stadkant)</span></label>
-          <input id="fw" type="number" inputmode="decimal" min="1" step="any" value="110">
-          <span class="unit">cm</span>
+          <input id="fw" type="number" inputmode="decimal" min="1" step="any" value="42">
+          <span class="unit">in</span>
         </div>
       </div>
     </details>
@@ -158,13 +151,13 @@
     <div class="grid">
       <div class="field">
         <label for="hx">Tygbitens bredd</label>
-        <input id="hx" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 50">
-        <span class="unit">cm</span>
+        <input id="hx" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 20">
+        <span class="unit">in</span>
       </div>
       <div class="field">
         <label for="hy">Tygbitens längd</label>
-        <input id="hy" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 70">
-        <span class="unit">cm</span>
+        <input id="hy" type="number" inputmode="decimal" min="0" step="any" placeholder="t.ex. 27">
+        <span class="unit">in</span>
       </div>
     </div>
     <div id="have"></div>
@@ -174,7 +167,8 @@
     <p><b>Så räknas det</b></p>
     <ul>
       <li>Kantbandets längd = lapptäckets omkrets (2 × bredd + 2 × längd) + extra längd.</li>
-      <li>Remsorna klipps tvärs över tyget i vald remsbredd och skarvas ihop. Varje skarv äter upp lite längd, vilket räknas med.</li>
+      <li>Remsorna klipps tvärs över tyget i vald remsbredd och skarvas ihop med diagonala sömmar. Varje diagonal skarv äter upp ungefär en remsbredd plus ½″ för sömsmån, alltså 3″ per skarv med 2,5″ remsor. Det räknas med.</li>
+      <li>Föreslagen mängd att köpa är avrundad uppåt till närmaste ⅛ yard (4,5″).</li>
       <li>För din egen tygbit testas båda riktningarna (remsor längs bredden eller längden) och den som ger mest kantband används.</li>
       <li>Räkningen gäller rakt klippta remsor, inte snedremsor.</li>
     </ul>
@@ -184,7 +178,7 @@
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const ids = ['qw', 'ql', 'sw', 'extra', 'join', 'fw', 'hx', 'hy'];
+  const ids = ['qw', 'ql', 'sw', 'extra', 'fw', 'hx', 'hy'];
   const num = (id) => {
     const v = parseFloat(String($(id).value).replace(',', '.'));
     return isFinite(v) ? v : NaN;
@@ -193,11 +187,20 @@
     const r = Math.round(v * Math.pow(10, d)) / Math.pow(10, d);
     return r.toLocaleString('sv-SE', { maximumFractionDigits: d });
   };
-  const cm = (v) => fmt(v) + ' cm';
-  const m = (v) => fmt(v / 100, 2) + ' m';
+  const inch = (v) => fmt(v, 2) + '″';
+  const yd = (v) => fmt(v / 36, 2) + ' yd';
+  const len = (v) => inch(v) + ' (' + yd(v) + ')';
+  const eighths = ['', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞'];
+  const ydFrac = (inches) => {
+    const e = Math.round(inches / 4.5);
+    const whole = Math.floor(e / 8), rest = e % 8;
+    return ((whole ? whole + ' ' : '') + eighths[rest]).trim() + ' yard';
+  };
 
+  // Diagonal seam: overlapping strips at a right angle uses about one strip
+  // width of length, plus the ¼″ seam allowance trimmed on each side.
   function joinLoss(stripW) {
-    return $('join').value === 'diag' ? stripW : 1.5;
+    return stripW + 0.5;
   }
 
   // Total binding length from k strips of length len
@@ -248,21 +251,23 @@
     const n = stripsNeeded(total, fw, loss);
 
     if (!isFinite(n)) {
-      need.innerHTML = '<p class="error">Tygbredden måste vara större än det som går åt i varje skarv.</p>';
+      need.innerHTML = '<p class="error">Tygbredden måste vara större än det som går åt i varje diagonal skarv.</p>';
     } else {
       const fabricLen = n * sw;
+      const buyLen = Math.ceil(fabricLen / 4.5 - 1e-9) * 4.5;
       const produced = lengthFromStrips(n, fw, loss);
       need.innerHTML = `
         <div class="result">
           <p class="muted">Du behöver en tygbit på</p>
-          <p class="big">${cm(fw)} × ${cm(fabricLen)}</p>
-          <p>(${fmt(fw)} cm tygbredd, ${fmt(fabricLen)} cm längd)</p>
+          <p class="big">${inch(fw)} × ${inch(fabricLen)}</p>
+          <p>(${inch(fw)} tygbredd, ${inch(fabricLen)} längd = ${yd(fabricLen)})</p>
+          <p>Köp minst <b>${ydFrac(buyLen)}</b> (${inch(buyLen)}), avrundat till närmaste ⅛ yard.</p>
         </div>
         <div class="stats">
-          <div class="stat"><b>${m(total)}</b><span>kantband behövs</span></div>
-          <div class="stat"><b>${n} st</b><span>remsor à ${cm(sw)} × ${cm(fw)}</span></div>
-          <div class="stat"><b>${n - 1} st</b><span>skarvar</span></div>
-          <div class="stat"><b>${m(produced)}</b><span>kantband du får fram</span></div>
+          <div class="stat"><b>${len(total)}</b><span>kantband behövs</span></div>
+          <div class="stat"><b>${n} st</b><span>remsor à ${inch(sw)} × ${inch(fw)}</span></div>
+          <div class="stat"><b>${n - 1} st</b><span>diagonala skarvar (${inch(loss)} spill per skarv)</span></div>
+          <div class="stat"><b>${len(produced)}</b><span>kantband du får fram</span></div>
         </div>
         <figure class="diagram" style="margin:14px 0 0">
           ${diagram(fw, fabricLen, sw, n)}
@@ -286,8 +291,8 @@
 
     const useA = lenA >= lenB;
     const best = useA
-      ? { k: kA, len: hx, total: lenA, pieceW: hx, pieceH: hy, dir: 'längs bredden (' + cm(hx) + ' långa)' }
-      : { k: kB, len: hy, total: lenB, pieceW: hy, pieceH: hx, dir: 'längs längden (' + cm(hy) + ' långa)' };
+      ? { k: kA, len: hx, total: lenA, pieceW: hx, pieceH: hy, dir: 'längs bredden (' + inch(hx) + ' långa)' }
+      : { k: kB, len: hy, total: lenB, pieceW: hy, pieceH: hx, dir: 'längs längden (' + inch(hy) + ' långa)' };
 
     const enough = best.total >= total;
     const diff = best.total - total;
@@ -295,12 +300,12 @@
 
     if (best.k === 0) {
       html = `<div class="verdict bad"><p class="big">Räcker inte</p>
-        <p>Tygbiten är smalare än remsbredden (${cm(sw)}), så det går inte att klippa några remsor.</p></div>`;
+        <p>Tygbiten är smalare än remsbredden (${inch(sw)}), så det går inte att klippa några remsor.</p></div>`;
     } else if (enough) {
       const kUsed = stripsNeeded(total, best.len, loss);
       html = `<div class="verdict ok"><p class="big">Ja, det räcker!</p>
-        <p>Du kan få fram <b>${m(best.total)}</b> kantband och behöver <b>${m(total)}</b>. Det blir <b>${m(diff)}</b> över.</p>
-        <p>Klipp <b>${kUsed} remsor</b> ${best.dir}. Du använder ${cm(best.pieceW)} × ${cm(kUsed * sw)} av tyget.</p></div>`;
+        <p>Du kan få fram <b>${len(best.total)}</b> kantband och behöver <b>${len(total)}</b>. Det blir <b>${len(diff)}</b> över.</p>
+        <p>Klipp <b>${kUsed} remsor</b> ${best.dir}. Du använder ${inch(best.pieceW)} × ${inch(kUsed * sw)} av tyget.</p></div>`;
     } else {
       const short = -diff;
       // How much longer would the piece need to be, keeping the same strip direction?
@@ -308,10 +313,10 @@
       let extraTip = '';
       if (isFinite(kNeed)) {
         const needSide = kNeed * sw;
-        extraTip = `<p>Med remsor ${best.dir} skulle tygbiten behöva vara <b>${cm(best.pieceW)} × ${cm(needSide)}</b> (${kNeed} remsor), alltså ${cm(needSide - best.pieceH)} till.</p>`;
+        extraTip = `<p>Med remsor ${best.dir} skulle tygbiten behöva vara <b>${inch(best.pieceW)} × ${inch(needSide)}</b> (${kNeed} remsor), alltså ${inch(needSide - best.pieceH)} till.</p>`;
       }
       html = `<div class="verdict bad"><p class="big">Nej, det räcker inte</p>
-        <p>Du kan få fram <b>${m(best.total)}</b> kantband men behöver <b>${m(total)}</b>. Det fattas <b>${m(short)}</b>.</p>
+        <p>Du kan få fram <b>${len(best.total)}</b> kantband men behöver <b>${len(total)}</b>. Det fattas <b>${len(short)}</b>.</p>
         ${extraTip}</div>`;
     }
 
