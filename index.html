@@ -499,7 +499,31 @@
     have.innerHTML = html;
   }
 
-  ids.forEach((id) => $(id).addEventListener('input', render));
+  // Remember values and units between visits (per browser only).
+  const KEY = 'kantbandsraknare';
+  const syncLabels = () => ['q', 'h'].forEach((g) => {
+    document.querySelectorAll(`.unit[data-g="${g}"]`).forEach((el) => { el.textContent = unitOf(g); });
+  });
+  function save() {
+    try {
+      const values = {};
+      ids.forEach((id) => { values[id] = $(id).value; });
+      localStorage.setItem(KEY, JSON.stringify({ values, units: { q: unitOf('q'), h: unitOf('h') } }));
+    } catch (e) { /* storage unavailable */ }
+  }
+  function load() {
+    try {
+      const st = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (!st) return;
+      ['q', 'h'].forEach((g) => {
+        const u = st.units && st.units[g];
+        if (u === 'cm' || u === 'in') $(`${g}unit-${u}`).checked = true;
+      });
+      ids.forEach((id) => { if (st.values && typeof st.values[id] === 'string') $(id).value = st.values[id]; });
+    } catch (e) { /* ignore broken or blocked storage */ }
+  }
+
+  ids.forEach((id) => $(id).addEventListener('input', () => { render(); save(); }));
 
   // Switching unit converts the values already entered.
   ['q', 'h'].forEach((g) => {
@@ -515,12 +539,18 @@
           $(id).value = shown;
           exact[id] = { v: prev, shown };
         });
-        document.querySelectorAll(`.unit[data-g="${g}"]`).forEach((el) => { el.textContent = toCm ? 'cm' : 'in'; });
+        syncLabels();
         render();
+        save();
       });
     });
   });
+
+  load();
+  // The browser may also restore the radio buttons on reload, so always match labels to them.
+  syncLabels();
   render();
+  window.addEventListener('pageshow', () => { syncLabels(); render(); });
 })();
 </script>
 </body>
